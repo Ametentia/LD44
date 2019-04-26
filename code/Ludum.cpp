@@ -1,5 +1,6 @@
 
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
+    sfRenderWindow_clear(state->renderer, CreateColour(0.25, 0.25, 0.25));
     Game_Controller *controller = GameGetController(input, 0);
     Assert(controller->is_connected);
 

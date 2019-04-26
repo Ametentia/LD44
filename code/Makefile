@@ -3,6 +3,7 @@ CXX = clang++
 
 PROJECT := Ludum
 PROJECT_UPPER := LUDUM
+BUILD_DIR := ../build
 
 COMPILER := -Wno-switch -Wno-undefined-internal -Wno-writable-strings
 DEFINES  := -D$(UPPER_PROJECT)_INTERNAL -D$(UPPER_PROJECT)_SLOW
