@@ -86,9 +86,14 @@ inline v2 Normalise(v2 v) {
     v2 result = {};
     f32 length = Length(v);
     if (length != 0) {
-        result *= (1.0f / length);
+        result = (1.0f / length) * v;
     }
 
+    return result;
+}
+
+inline v2 Perp(v2 v) {
+    v2 result = { -v.y, v.x };
     return result;
 }
 

@@ -9,9 +9,13 @@
 
 struct Controlled_Player {
     v2 position;
+    v2 facing_direction;
     // sfSprite *sprite; @Note: This will be used once we have texturing etc.
-    sfCircleShape *shape;
+    sfConvexShape *shape;
     f32 hitbox_radius; // Circle collision detection
+
+    bool has_shield;
+    bool has_stabby_weapon;
 
     u32 health;
     u32 max_health;

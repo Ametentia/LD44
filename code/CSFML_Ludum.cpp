@@ -106,8 +106,6 @@ internal void CSFMLProcessEvents(Game_Input *current, Game_Input *prev) {
                 s32 y = event.mouseMove.y;
 
                 current->screen_mouse = V2(x, y);
-                current->unprojected_mouse =
-                    sfRenderWindow_mapPixelToCoords(global_window, V2i(x, y), global_current_view);
             }
             break;
         }

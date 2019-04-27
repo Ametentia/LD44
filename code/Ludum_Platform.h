@@ -78,7 +78,6 @@ inline void GameClearController(Game_Controller *controller, bool connected) {
 internal void GameSwapInputs(Game_Input *current_input, Game_Input *prev_input) {
     // Copy over mouse stuff
     current_input->screen_mouse = prev_input->screen_mouse;
-    current_input->unprojected_mouse = prev_input->unprojected_mouse;
 
     for (u32 it = 0; it < ArrayCount(Game_Input::mouse_buttons); ++it) {
         current_input->mouse_buttons[it].transitions = 0;

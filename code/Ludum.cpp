@@ -38,7 +38,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     Controlled_Player *player = &play->players[0];
 
     f32 dt = input->delta_time;
-    f32 player_speed = 280 * player->speed_modifier;
+    f32 player_speed = 700 * player->speed_modifier;
     if (IsPressed(controller->move_up)) {
         player->position += dt * V2(0, -player_speed);
     }
@@ -54,17 +54,129 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     }
 
     if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
-        Level_State *level = CreateLevelState(state, LevelType_Menu);
+        if (player->has_stabby_weapon) {
+            if (player->has_shield) {
+                player->has_stabby_weapon = false;
+                player->has_shield = false;
+            }
+            else {
+                player->has_shield = true;
+            }
+        }
+        else {
+            if (player->has_shield) {
+                player->has_stabby_weapon = true;
+                player->has_shield = false;
+            }
+            else {
+                player->has_shield = true;
+            }
+        }
     }
+
+
+    v4i colour = CreateColour(1, 0, 0);
+    {
+        // @Speed: Inefficient
+        v2 dir = Normalise(V2(960, 540) - player->position);
+        f32 dist = Length(V2(960, 540) - player->position);
+        if ((player->hitbox_radius + dist) <= 1000) {
+            colour = CreateColour(0, 1, 0);
+        }
+        else {
+            player->position += (dist - (1000 - player->hitbox_radius)) * dir;
+        }
+    }
+
+#if 1
+    // This can be used to offset the camera slightly as the player moves the mouse further
+    // away from the centre, however, it might need some lerp as it is a bit jarring
+    f32 length = 0.15 * Length(input->unprojected_mouse - player->position);
+    v2 dir = Normalise(input->unprojected_mouse - player->position);
+    v2 camera_offset = length * dir;
+#endif
 
     // Move the view to centre on the player and update the render window to use the new view
     sfView_setCenter(state->view, player->position);
     sfRenderWindow_setView(state->renderer, state->view);
 
+    // This _has_ to be updated here because the view moves when the player does and thus
+    // if the mouse isn't being move the copied unprojected position becomes invalid
+    input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
+            V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
+
+    sfView_setCenter(state->view, player->position + camera_offset);
+    sfRenderWindow_setView(state->renderer, state->view);
+
+    player->facing_direction = Normalise(input->unprojected_mouse - player->position);
+    f32 angle = (PI32 / 2.0) + Atan2(player->facing_direction.y, player->facing_direction.x);
+    sfConvexShape_setRotation(player->shape, Degrees(angle));
+
     // Render the arena and player
-    sfCircleShape_setPosition(player->shape, player->position);
-    sfRenderWindow_drawCircleShape(state->renderer, play->arena,  0);
-    sfRenderWindow_drawCircleShape(state->renderer, player->shape, 0);
+    sfConvexShape_setPosition(player->shape, player->position);
+    sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
+    sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
+
+    if (player->has_stabby_weapon) {
+        v2 position = (player->position + 35 * player->facing_direction);
+        if (player->has_shield) {
+            v2 offset = 20 * Normalise(Perp(player->facing_direction));
+            sfCircleShape *shield = sfCircleShape_create();
+            sfCircleShape_setRadius(shield, 10);
+            sfCircleShape_setOrigin(shield, V2(10, 10));
+            sfCircleShape_setFillColor(shield, CreateColour(1, 1, 0));
+            sfCircleShape_setPosition(shield, position + offset);
+
+            sfRenderWindow_drawCircleShape(state->renderer, shield, 0);
+
+            sfCircleShape_destroy(shield);
+
+            sfCircleShape *stabby_weapon = sfCircleShape_create();
+            sfCircleShape_setRadius(stabby_weapon, 10);
+            sfCircleShape_setOrigin(stabby_weapon, V2(10, 10));
+            sfCircleShape_setFillColor(stabby_weapon, CreateColour(0, 1, 1));
+            sfCircleShape_setPosition(stabby_weapon, position - offset);
+
+            sfRenderWindow_drawCircleShape(state->renderer, stabby_weapon, 0);
+
+            sfCircleShape_destroy(stabby_weapon);
+        }
+        else {
+            sfCircleShape *stabby_weapon = sfCircleShape_create();
+            sfCircleShape_setRadius(stabby_weapon, 10);
+            sfCircleShape_setOrigin(stabby_weapon, V2(10, 10));
+            sfCircleShape_setFillColor(stabby_weapon, CreateColour(0, 1, 1));
+            sfCircleShape_setPosition(stabby_weapon, position);
+
+            sfRenderWindow_drawCircleShape(state->renderer, stabby_weapon, 0);
+
+            sfCircleShape_destroy(stabby_weapon);
+        }
+    }
+    else if (player->has_shield) {
+        v2 position = (player->position + 35 * player->facing_direction);
+        sfCircleShape *shield = sfCircleShape_create();
+        sfCircleShape_setRadius(shield, 10);
+        sfCircleShape_setOrigin(shield, V2(10, 10));
+        sfCircleShape_setFillColor(shield, CreateColour(1, 1, 0));
+        sfCircleShape_setPosition(shield, position);
+
+        sfRenderWindow_drawCircleShape(state->renderer, shield, 0);
+        sfCircleShape_destroy(shield);
+    }
+
+
+    // @Debug: This is showing the hitbox
+    sfCircleShape *hitbox = sfCircleShape_create();
+    sfCircleShape_setRadius(hitbox, player->hitbox_radius);
+    sfCircleShape_setOrigin(hitbox, V2(player->hitbox_radius, player->hitbox_radius));
+    sfCircleShape_setPosition(hitbox, player->position);
+    sfCircleShape_setFillColor(hitbox, sfTransparent);
+    sfCircleShape_setOutlineThickness(hitbox, 2);
+    sfCircleShape_setOutlineColor(hitbox, colour);
+    sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
+
+    sfCircleShape_destroy(hitbox);
 }
 
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
@@ -83,12 +195,20 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 
         Controlled_Player *player = &play->players[0];
         player->speed_modifier = 1;
-        player->hitbox_radius = 20;
-        player->shape = sfCircleShape_create();
-        sfCircleShape_setRadius(player->shape, player->hitbox_radius);
-        sfCircleShape_setOrigin(player->shape, V2(20, 20));
-        sfCircleShape_setFillColor(player->shape, CreateColour(1, 0, 0, 1));
+        player->hitbox_radius = 30;
+        player->has_stabby_weapon = true;
+        player->has_shield = true;
+        v2 points[4] = {
+            V2(-40, -20), V2(-40,  20),
+            V2( 40,  20), V2( 40, -20)
+        };
+        player->shape = sfConvexShape_create();
+        sfConvexShape_setPointCount(player->shape, ArrayCount(points));
+        for (u32 it = 0; it < ArrayCount(points); ++it) {
+            sfConvexShape_setPoint(player->shape, it, points[it]);
+        }
 
+        sfConvexShape_setFillColor(player->shape, CreateColour(1, 0, 0, 1));
         state->initialised = true;
     }
 
