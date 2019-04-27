@@ -4,11 +4,18 @@
 #include <math.h>
 #include <stdlib.h>
 
+#define Square(x) ((x) * (x))
+
 #define Atan2(y, x) atan2f(y, x)
 #define Cos(x) cosf(x)
 #define Sin(x) sinf(x)
 #define Tan(x) tanf(x)
 #define Sqrt(x) sqrtf(x)
+
+#define Clamp(x, min, max) (Min(Max(x, min), max))
+#define Clamp01(x) (Clamp(x, 0, 1))
+
+#define Lerp(start, end, alpha) (((end) * (alpha)) + ((start) * (1 - (alpha))))
 
 inline s32 random(s32 min, s32 max) {
 	return (rand() % (max - min)) + max;
@@ -117,5 +124,13 @@ inline v4i CreateColour(f32 r, f32 g, f32 b) {
     v4i result = CreateColour(r, g, b, 1);
     return result;
 }
+
+inline bool CircleIntersection(v2 p0, f32 r0, v2 p1, f32 r1) {
+    v2 rel = p1 - p0;
+    f32 dist = Dot(rel, rel);
+    bool result = (dist <= Square(r0 + r1));
+    return result;
+}
+
 
 #endif  // LUDUM_MATHS_H_

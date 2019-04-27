@@ -7,6 +7,17 @@
 #include "Ludum_Platform.h"
 #include "Ludum_Assets.h"
 
+enum Attack_Type {
+    AttackType_None,
+
+    AttackType_Punch,
+
+    AttackType_ReverseStab,
+    AttackType_Stab,
+    AttackType_Slash,
+};
+
+
 struct Controlled_Player {
     v2 position;
     v2 facing_direction;
@@ -17,11 +28,16 @@ struct Controlled_Player {
     bool has_shield;
     bool has_stabby_weapon;
 
-    u32 health;
-    u32 max_health;
+    s32 health; // Probably should be float
+    s32 max_health;
+    f32 invuln_time;
 
     f32 speed_modifier;
     f32 attack_modifier;
+
+    Attack_Type attack_type;
+    f32 attack_time;
+    f32 attack_offset;
 
     s32 family_hunger;
 };
@@ -31,8 +47,8 @@ struct AI_Player {
 	sfCircleShape *shape;
 	f32 hitbox_radius;
 
-	u32 health;
-	u32 max_health;
+	s32 health;
+	s32 max_health;
 
     f32 speed_modifier;
     f32 attack_modifier;
