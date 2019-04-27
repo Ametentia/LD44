@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#include <stdlib.h>
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>
@@ -18,6 +20,7 @@ internal bool LinuxInitialise(Game_State *state) {
         state->renderer = global_window;
         state->view = global_current_view;
     }
+	srand(time(NULL));
 
     return result;
 }

@@ -29,6 +29,48 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
 
 }
 
+internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
+    Controlled_Player *player = &play->players[0];
+    AI_Player *enemy = &play->enemies[aiNum];
+	f32 distance = Length(enemy->position - player->position);
+	enemy->attack_wait_time -= dt;
+	if(enemy->attacking){
+		enemy->position += enemy->attack_dir * enemy->speed_modifier * 700 * dt;
+		if(Length(enemy->position - enemy->attack_start) > 200) {
+			enemy->attacking = false;
+			enemy->attack_wait_time = 1;
+			s32 dir = random(-1, 1)-1;
+			if(dir == 0)
+				dir = -1;
+			enemy->rotate_dir = dir;
+		}
+	}
+	else if(distance > 200) {
+		v2 direction = Normalise(player->position -enemy->position);
+		enemy->position += direction * enemy->speed_modifier * 700 * dt;
+		s32 dir = random(-1, 1)-1;
+		if(dir == 0)
+			dir = -1;
+		enemy->rotate_dir = dir;
+	}
+	else if(enemy->attack_wait_time > 0 && distance > 100) {
+		v2 direction = Normalise(player->position - enemy->position);
+		direction = V2(-direction.y, direction.x);
+		enemy->position += enemy->rotate_dir * direction * enemy->speed_modifier * 300 * dt;
+	}
+	else if(enemy->attack_wait_time > 0 && distance < 110) {
+		v2 direction = Normalise(player->position -enemy->position);
+		enemy->position -= direction * enemy->speed_modifier * 700 * dt;
+	}
+	else if(enemy->attack_wait_time < 0){
+		enemy->attacking = true;
+		enemy->attack_start = enemy->position;
+		enemy->attack_dir = Normalise(player->position - enemy->position);
+	}
+    sfCircleShape_setPosition(enemy->shape, enemy->position);
+    sfRenderWindow_drawCircleShape(state->renderer, enemy->shape, 0);
+}
+
 internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
 
@@ -112,9 +154,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     f32 angle = (PI32 / 2.0) + Atan2(player->facing_direction.y, player->facing_direction.x);
     sfConvexShape_setRotation(player->shape, Degrees(angle));
 
-    // Render the arena and player
     sfConvexShape_setPosition(player->shape, player->position);
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
+
     sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
     if (player->has_stabby_weapon) {
@@ -177,6 +219,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
 
     sfCircleShape_destroy(hitbox);
+
+	UpdateAIPlayer(state, play, dt, 0);
+	UpdateAIPlayer(state, play, dt, 1);
 }
 
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
@@ -204,11 +249,34 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         };
         player->shape = sfConvexShape_create();
         sfConvexShape_setPointCount(player->shape, ArrayCount(points));
+        sfConvexShape_setFillColor(player->shape, sfRed);
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(player->shape, it, points[it]);
         }
 
-        sfConvexShape_setFillColor(player->shape, CreateColour(1, 0, 0, 1));
+		AI_Player *enemy = &play->enemies[0];
+		enemy->speed_modifier = 1;
+		enemy->hitbox_radius = 25;
+		enemy->shape = sfCircleShape_create();
+		enemy->position.x = 960;
+		enemy-> attacking = false;
+		enemy->attack_wait_time = 0;
+        sfCircleShape_setRadius(enemy->shape, enemy->hitbox_radius);
+        sfCircleShape_setOrigin(enemy->shape, V2(20, 20));
+        sfCircleShape_setFillColor(enemy->shape, CreateColour(1, 0, 0, 1));
+
+		AI_Player *enemy_2 = &play->enemies[1];
+		enemy_2->speed_modifier = 1;
+		enemy_2->hitbox_radius = 25;
+		enemy_2->shape = sfCircleShape_create();
+		enemy_2->position.x = 960;
+		enemy_2->position.y = 960;
+		enemy_2-> attacking = false;
+		enemy_2->attack_wait_time = 0;
+        sfCircleShape_setRadius(enemy_2->shape, enemy_2->hitbox_radius);
+        sfCircleShape_setOrigin(enemy_2->shape, V2(20, 20));
+        sfCircleShape_setFillColor(enemy_2->shape, CreateColour(1, 0, 0, 1));
+
         state->initialised = true;
     }
 

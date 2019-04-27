@@ -2,12 +2,17 @@
 #define LUDUM_MATHS_H_
 
 #include <math.h>
+#include <stdlib.h>
 
 #define Atan2(y, x) atan2f(y, x)
 #define Cos(x) cosf(x)
 #define Sin(x) sinf(x)
 #define Tan(x) tanf(x)
 #define Sqrt(x) sqrtf(x)
+
+inline s32 random(s32 min, s32 max) {
+	return (rand() % (max - min)) + max;
+}
 
 inline v2 V2(f32 x, f32 y) {
     v2 result = { x, y };
