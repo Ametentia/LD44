@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS 1
 #include <windows.h>
 #include <stdio.h>
+#include <time.h>
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>
@@ -49,6 +50,8 @@ internal bool WinInitialise(Game_State *state) {
         state->renderer = global_window;
         state->view = global_current_view;
     }
+
+    srand(time(0));
 
     return result;
 }
