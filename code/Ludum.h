@@ -23,6 +23,7 @@ struct Controlled_Player {
     v2 facing_direction;
     // sfSprite *sprite; @Note: This will be used once we have texturing etc.
     sfConvexShape *shape;
+	Asset_Handle texture;
     f32 hitbox_radius; // Circle collision detection
 
     bool has_shield;
@@ -41,6 +42,7 @@ struct Controlled_Player {
     f32 attack_offset;
 
     s32 family_hunger;
+	s32 balence;
 };
 
 struct AI_Player {
@@ -54,6 +56,7 @@ struct AI_Player {
 
     bool has_shield;
     bool has_stabby_weapon;
+	Asset_Handle texture;
 
     f32 speed_modifier;
     f32 attack_modifier;
@@ -67,6 +70,7 @@ struct AI_Player {
     f32 attack_offset;
 
 	s8 rotate_dir;
+	bool circling = false;
 	bool attacking;
 };
 
@@ -80,20 +84,37 @@ struct Play_State {
 	u8 AI_Count;
     sfCircleShape *arena;
 };
+struct Logo_State {
+	bool initialised = false;
+	f32 delta_rate;
+    f32 rate;
+    f32 opacity;
+
+    Asset_Handle texture;
+};
 
 struct Dialog_State {
 	bool initialised = false;
 	char dialog[30][128];
-	sfTexture *characters[4];
-	sfFont *font;
+	Asset_Handle characters[4];
+	Asset_Handle font;
 	u8 line_count;
 	u8 current_line = 0;
 };
+
+struct Payment_State {
+	Asset_Handle background;
+	Asset_Handle character;
+	Asset_Handle font;
+	bool initialised = false;
+};	
 
 enum Level_Type {
     LevelType_None = 0,
     LevelType_Play,
     LevelType_Menu,
+	LevelType_Logo,
+	LevelType_Payment,
     LevelType_Dialog
 };
 
@@ -102,7 +123,9 @@ struct Level_State {
     union {
         Play_State play;
         Menu_State menu;
+		Logo_State logo;
 		Dialog_State dialog;
+		Payment_State payment;
     };
 
     Level_State *next;

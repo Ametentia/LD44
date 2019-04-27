@@ -51,32 +51,51 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 		if(Length(enemy->position - enemy->attack_start) > 200) {
             enemy->attack_type = AttackType_None;
 			enemy->attacking = false;
-            enemy->attack_offset = 0;
-			enemy->attack_wait_time = 1;
+                        enemy->attack_offset = 0;
+			enemy->attack_wait_time = random(1,4);
 			s32 dir = random(-1, 1)-1;
 			if(dir == 0)
 				dir = -1;
 			enemy->rotate_dir = dir;
+			enemy->circling = random(0,10) > 5;
 		}
 		enemy->facing_direction = enemy->attack_dir;
 		f32 angle = (PI32 / 2.0) + Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
     	sfConvexShape_setRotation(enemy->shape, Degrees(angle));
+
 	}
-	else if(distance > 200) {
+	else if(distance > 300) {
 		v2 direction = Normalise(player->position -enemy->position);
+		for(int i = 0; i < play->AI_Count; i++) {
+			if(i != aiNum && Length(play->enemies[i].position-enemy->position) < 300) {
+				direction -= Normalise(play->enemies[i].position -enemy->position);
+			}
+		}
 		enemy->position += direction * enemy->speed_modifier * 700 * dt;
 		s32 dir = random(-1, 1)-1;
 		if(dir == 0)
 			dir = -1;
 		enemy->rotate_dir = dir;
 	}
-	else if(enemy->attack_wait_time > 0 && distance > 100) {
-		v2 direction = Normalise(player->position - enemy->position);
-		direction = V2(-direction.y, direction.x);
-		enemy->position += enemy->rotate_dir * direction * enemy->speed_modifier * 300 * dt;
+	else if(enemy->attack_wait_time > 0 && distance >= 190) {
+		if(enemy->circling) {
+			v2 direction = Normalise(player->position - enemy->position);
+			direction = Perp(direction);
+			for(int i = 0; i < play->AI_Count; i++) {
+				if(i != aiNum && Length(play->enemies[i].position-enemy->position) < 300) {
+					direction = Perp(Normalise(play->enemies[i].position -enemy->position));
+				}
+			}
+			enemy->position += enemy->rotate_dir * direction * enemy->speed_modifier * 300 * dt;
+		}
 	}
-	else if(enemy->attack_wait_time > 0 && distance < 110) {
+	else if(enemy->attack_wait_time > 0 && distance < 190) {
 		v2 direction = Normalise(player->position -enemy->position);
+		for(int i = 0; i < play->AI_Count; i++) {
+			if(i != aiNum && Length(play->enemies[i].position-enemy->position) < 300) {
+				direction += Normalise(play->enemies[i].position -enemy->position);
+			}
+		}
 		enemy->position -= direction * enemy->speed_modifier * 700 * dt;
 	}
 	else if(enemy->attack_wait_time < 0){
@@ -402,6 +421,155 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     }
 }
 
+internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment, Game_Input *input) {
+    sfRenderWindow_clear(state->renderer, CreateColour(0, 1, 1, 1));
+	if(!payment->initialised) {
+		payment->character = LoadTexture(&state->assets, "sprites/Lucy.png");
+		payment->initialised = true;
+		payment->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
+	}
+	sfRectangleShape *char_rect = sfRectangleShape_create();
+	sfRectangleShape_setPosition(char_rect, V2(40, 500));
+	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets, 
+				payment->character), false);
+	sfRectangleShape_setSize(char_rect, V2(576, 360*2));
+	sfRectangleShape_setFillColor(char_rect, CreateColour(1,1,1,1));
+	sfRenderWindow_drawRectangleShape(state->renderer, char_rect, NULL);
+	sfRectangleShape_destroy(char_rect);
+
+
+	sfRectangleShape *background_stats = sfRectangleShape_create();
+	sfRectangleShape_setPosition(background_stats, V2(50, 50));
+	sfRectangleShape_setFillColor(background_stats, CreateColour(1,0,1,1));
+	sfRectangleShape_setSize(background_stats, V2(560, 480));
+	sfRenderWindow_drawRectangleShape(state->renderer, background_stats, NULL);
+	sfRectangleShape_destroy(background_stats);
+
+	sfRectangleShape *background_options = sfRectangleShape_create();
+	sfRectangleShape_setPosition(background_options, V2(800, 50));
+	sfRectangleShape_setFillColor(background_options, CreateColour(1,0,1,1));
+	sfRectangleShape_setSize(background_options, V2(1080, 990));
+	sfRenderWindow_drawRectangleShape(state->renderer, background_options, NULL);
+	sfRectangleShape_destroy(background_options);
+
+	sfText *Stats = sfText_create();
+	sfText_setString(Stats, "Family Food Supply: Good\n"
+						   "Money: None\n"
+						   "Another Stat: Real Bad\n"
+						   "Another Stat: Disaster\n"
+						   "Matt's Back: Hurts bad\n"
+						   "Son's health: Dead\n"
+						   "Daughter's health: Murdered\n"
+						   "Reasons to continue: 0");
+	sfText_setCharacterSize(Stats, 40);
+	sfText_setFont(Stats, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Stats, V2(60, 60));
+	sfText_setFillColor(Stats, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Stats, NULL);
+	sfText_destroy(Stats);
+
+	sfText *Heading = sfText_create();
+	sfText_setString(Heading, "Domestic");
+	sfText_setCharacterSize(Heading, 64);
+	sfText_setFont(Heading, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Heading, V2(810, 60));
+	sfText_setFillColor(Heading, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Heading, NULL);
+	sfText_setString(Heading, "Equipment");
+	sfText_setPosition(Heading, V2(810, 500));
+	sfRenderWindow_drawText(state->renderer, Heading, NULL);
+	sfText_destroy(Heading);
+
+	sfText *Domestic_Text = sfText_create();
+	sfText_setString(Domestic_Text, "Sword");
+	sfText_setCharacterSize(Domestic_Text, 40);
+	sfText_setFont(Domestic_Text, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Domestic_Text, V2(810, 130));
+	sfText_setFillColor(Domestic_Text, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
+	sfText_setString(Domestic_Text, "Spear");
+	sfText_setPosition(Domestic_Text, V2(810, 250));
+	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
+	sfText_setString(Domestic_Text, "Shield");
+	sfText_setPosition(Domestic_Text, V2(810, 370));
+	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
+	sfText_destroy(Domestic_Text);
+
+	sfText *Domestic_desc = sfText_create();
+	sfText_setString(Domestic_desc, "	If you want your enemies to look more stripey");
+	sfText_setCharacterSize(Domestic_desc, 34);
+	sfText_setFont(Domestic_desc, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Domestic_desc, V2(810, 190));
+	sfText_setFillColor(Domestic_desc, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
+	sfText_setString(Domestic_desc, "	If you want someone roughly a meter away full of holes.");
+	sfText_setPosition(Domestic_desc, V2(810, 310));
+	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
+	sfText_setString(Domestic_desc, "	If you don't like sharp hurty things touching you.");
+	sfText_setPosition(Domestic_desc, V2(810, 430));
+	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
+	sfText_destroy(Domestic_desc);
+
+	sfText *Equipment_Text = sfText_create();
+	sfText_setString(Equipment_Text, "Sword");
+	sfText_setCharacterSize(Equipment_Text, 40);
+	sfText_setFont(Equipment_Text, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Equipment_Text, V2(810, 570));
+	sfText_setFillColor(Equipment_Text, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Equipment_Text, NULL);
+	sfText_setString(Equipment_Text, "Spear");
+	sfText_setPosition(Equipment_Text, V2(810, 690));
+	sfRenderWindow_drawText(state->renderer, Equipment_Text, NULL);
+	sfText_setString(Equipment_Text, "Shield");
+	sfText_setPosition(Equipment_Text, V2(810, 810));
+	sfRenderWindow_drawText(state->renderer, Equipment_Text, NULL);
+	sfText_destroy(Equipment_Text);
+
+	sfText *Equipment_desc = sfText_create();
+	sfText_setString(Equipment_desc, "	If you want your enemies to look more stripey");
+	sfText_setCharacterSize(Equipment_desc, 34);
+	sfText_setFont(Equipment_desc, GetFont(&state->assets, payment->font));
+	sfText_setPosition(Equipment_desc, V2(810, 610));
+	sfText_setFillColor(Equipment_desc, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, Equipment_desc, NULL);
+	sfText_setString(Equipment_desc, "	If you want someone roughly a meter away full of holes.");
+	sfText_setPosition(Equipment_desc, V2(810, 730));
+	sfRenderWindow_drawText(state->renderer, Equipment_desc, NULL);
+	sfText_setString(Equipment_desc, "	If you don't like sharp hurty things touching you.");
+	sfText_setPosition(Equipment_desc, V2(810, 850));
+	sfRenderWindow_drawText(state->renderer, Equipment_desc, NULL);
+	sfText_destroy(Equipment_desc);
+
+}
+
+internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_Input *input) {
+    sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 0, 1));
+	if(!logo->initialised) {
+		logo->delta_rate = 1.0;
+		logo->rate = 0;
+		logo->opacity = 0;
+		logo->texture = LoadTexture(&state->assets, "sprites/logo.png");
+		logo->initialised = true;
+	}
+	logo->rate += logo->delta_rate;
+	logo->opacity = Clamp(logo->opacity + input->delta_time * 2.5 * logo->rate, -0.1, 255);	
+
+	sfRectangleShape *logo_rect = sfRectangleShape_create();
+	sfRectangleShape_setPosition(logo_rect, V2((1920-1080)/2, 0));
+	sfRectangleShape_setTexture(logo_rect, GetTexture(&state->assets, 
+				logo->texture), false);
+	sfRectangleShape_setSize(logo_rect, V2(1080,1080));
+	sfRectangleShape_setFillColor(logo_rect, CreateColour(1,1,1,logo->opacity/255));
+	sfRenderWindow_drawRectangleShape(state->renderer, logo_rect, NULL);
+	sfRectangleShape_destroy(logo_rect);
+	if(logo->opacity < 0 || IsPressed(input->controllers[0].accept)) {
+		free(RemoveLevelState(state));
+	}
+	else if (logo->rate > 75) {
+        logo->delta_rate = -logo->delta_rate;
+    }
+}
+
 internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
 	if(!dialog->initialised) {
@@ -421,18 +589,19 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 			char line[128];
 			int count = 0;
 			while (fgets(line, sizeof line, file2) != NULL) {
-				dialog->characters[count] = sfTexture_createFromFile(strtok(line, "\n"), NULL);
+				dialog->characters[count] = LoadTexture(&state->assets, strtok(line, "\n"));
 				count++;
 			}
 			fclose(file2);
 			dialog->line_count = count;
 		}
-		dialog->font = sfFont_createFromFile("fonts/Ubuntu.ttf");
+		dialog->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
 		dialog->initialised = true;
 	}
 	sfRectangleShape *character = sfRectangleShape_create();
 	sfRectangleShape_setPosition(character, V2(10 + (1400*(dialog->current_line%2)), 300));
-	sfRectangleShape_setTexture(character, dialog->characters[dialog->current_line], false);
+	sfRectangleShape_setTexture(character, GetTexture(&state->assets, 
+				dialog->characters[dialog->current_line]), false);
 	sfRectangleShape_setSize(character, V2(240*2, 360*2));
 	sfRenderWindow_drawRectangleShape(state->renderer, character, NULL);
 	sfRectangleShape_destroy(character);
@@ -449,7 +618,7 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 	sfText *Text = sfText_create();
 	sfText_setString(Text, dialog->dialog[dialog->current_line]);
 	sfText_setCharacterSize(Text, 64);
-	sfText_setFont(Text, dialog->font);
+	sfText_setFont(Text, GetFont(&state->assets, dialog->font));
 	sfText_setPosition(Text, V2(20, 950));
 	sfText_setFillColor(Text, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, Text, NULL);
@@ -467,8 +636,10 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 
         Level_State *level = CreateLevelState(state, LevelType_Play);
         Play_State *play = &level->play;
-		Level_State *level2 = CreateLevelState(state, LevelType_Dialog);
-
+		Level_State *level2 = CreateLevelState(state, LevelType_Logo);
+		Level_State *level3 = CreateLevelState(state, LevelType_Payment);
+		
+==== BASE ====
 
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
@@ -484,12 +655,14 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         player->has_stabby_weapon = true;
         player->has_shield = true;
         v2 points[4] = {
-            V2(-40, -20), V2(-40,  20),
-            V2( 40,  20), V2( 40, -20)
+            V2(-80, -40), V2(-80,  40),
+            V2( 80,  40), V2( 80, -40)
         };
         player->shape = sfConvexShape_create();
         sfConvexShape_setPointCount(player->shape, ArrayCount(points));
-        sfConvexShape_setFillColor(player->shape, sfRed);
+        //sfConvexShape_setFillColor(player->shape, sfRed);
+		player->texture = LoadTexture(&state->assets, "sprites/fighter1.png");
+		sfConvexShape_setTexture(player->shape, GetTexture(&state->assets, player->texture), false);
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(player->shape, it, points[it]);
         }
@@ -524,15 +697,50 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		enemy->attack_wait_time = 0;
         enemy->health = 50;
         enemy->shape = sfConvexShape_create();
+		enemy->texture = LoadTexture(&state->assets, "sprites/fighter2.png");
         sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
-        sfConvexShape_setFillColor(enemy->shape, sfRed);
+        //sfConvexShape_setFillColor(enemy->shape, sfRed);
+		sfConvexShape_setTexture(enemy->shape, GetTexture(&state->assets, enemy->texture), false);
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(enemy->shape, it, points[it]);
         }
 
-		play->AI_Count = 1;
-#endif
+		AI_Player *enemy2 = &play->enemies[1];
+		enemy2->speed_modifier = 1;
+		enemy2->hitbox_radius = 25;
+		enemy2->position.x = 960;
+		enemy2->has_stabby_weapon = true;
+		enemy2->has_shield = true;
+		enemy2-> attacking = false;
+		enemy2->attack_wait_time = 0;
+        enemy2->shape = sfConvexShape_create();
+		enemy2->texture = LoadTexture(&state->assets, "sprites/fighter2.png");
+        sfConvexShape_setPointCount(enemy2->shape, ArrayCount(points));
+        //sfConvexShape_setFillColor(enemy2->shape, sfRed);
+		sfConvexShape_setTexture(enemy2->shape, GetTexture(&state->assets, enemy2->texture), false);
+        for (u32 it = 0; it < ArrayCount(points); ++it) {
+            sfConvexShape_setPoint(enemy2->shape, it, points[it]);
+        }
 
+		AI_Player *enemy3 = &play->enemies[2];
+		enemy3->speed_modifier = 1;
+		enemy3->hitbox_radius = 25;
+		enemy3->position.x = 960;
+		enemy3->has_stabby_weapon = true;
+		enemy3->has_shield = true;
+		enemy3-> attacking = false;
+		enemy3->attack_wait_time = 0;
+        enemy3->shape = sfConvexShape_create();
+		enemy3->texture = LoadTexture(&state->assets, "sprites/fighter2.png");
+        sfConvexShape_setPointCount(enemy3->shape, ArrayCount(points));
+        //sfConvexShape_setFillColor(enemy3->shape, sfRed);
+		sfConvexShape_setTexture(enemy3->shape, GetTexture(&state->assets, enemy3->texture), false);
+        for (u32 it = 0; it < ArrayCount(points); ++it) {
+            sfConvexShape_setPoint(enemy3->shape, it, points[it]);
+        }
+
+		play->AI_Count = 3;
+#endif
         state->initialised = true;
     }
 
@@ -553,6 +761,16 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         case LevelType_Menu: {
             Menu_State *menu = &current_state->menu;
             UpdateRenderMenuState(state, menu, input);
+        }
+        break;
+        case LevelType_Logo: {
+            Logo_State *logo = &current_state->logo;
+            UpdateRenderLogoState(state, logo, input);
+        }
+        break;
+        case LevelType_Payment: {
+            Payment_State *payment = &current_state->payment;
+            UpdateRenderPaymentState(state, payment, input);
         }
         break;
     }

@@ -11,6 +11,7 @@
 #define Sin(x) sinf(x)
 #define Tan(x) tanf(x)
 #define Sqrt(x) sqrtf(x)
+#define Clamp(x, min, max) Max(min, Min(x, max))
 
 #define Clamp(x, min, max) (Min(Max(x, min), max))
 #define Clamp01(x) (Clamp(x, 0, 1))
@@ -18,7 +19,7 @@
 #define Lerp(start, end, alpha) (((end) * (alpha)) + ((start) * (1 - (alpha))))
 
 inline s32 random(s32 min, s32 max) {
-	return (rand() % (max - min)) + min;
+	return (rand() % (min - max)) + min;
 }
 
 inline v2 V2(f32 x, f32 y) {
