@@ -30,14 +30,28 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
 }
 
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
-    Controlled_Player *player = &play->players[0];
     AI_Player *enemy = &play->enemies[aiNum];
+    if (enemy->health <= 0) { return; }
+    Controlled_Player *player = &play->players[0];
+
 	f32 distance = Length(enemy->position - player->position);
 	enemy->attack_wait_time -= dt;
-	if(enemy->attacking){
+	if(enemy->attacking) {
 		enemy->position += enemy->attack_dir * enemy->speed_modifier * 700 * dt;
-		if(Length(enemy->position - enemy->attack_start) > 250) {
+        if (enemy->attack_type == AttackType_None) {
+            enemy->can_attack = true;
+            enemy->attack_type = cast(Attack_Type) random(3, 5);
+            if (enemy->attack_type == AttackType_Stab) {
+                enemy->attack_time = 0.2;
+            }
+            else if (enemy->attack_type == AttackType_Slash) {
+                enemy->attack_time = 0.4;
+            }
+        }
+		if(Length(enemy->position - enemy->attack_start) > 200) {
+            enemy->attack_type = AttackType_None;
 			enemy->attacking = false;
+                        enemy->attack_offset = 0;
 			enemy->attack_wait_time = random(1,4);
 			s32 dir = random(-1, 1)-1;
 			if(dir == 0)
@@ -45,7 +59,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 			enemy->rotate_dir = dir;
 			enemy->circling = random(0,10) > 5;
 		}
-		enemy->facing_direction = enemy->attack_dir; 
+		enemy->facing_direction = enemy->attack_dir;
 		f32 angle = (PI32 / 2.0) + Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
     	sfConvexShape_setRotation(enemy->shape, Degrees(angle));
 
@@ -114,6 +128,40 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
             sfCircleShape_destroy(shield);
 
+            if (enemy->attack_type == AttackType_Stab) {
+                position = (enemy->position +
+                        (35 + enemy->attack_offset) * enemy->facing_direction);
+            }
+            else if (enemy->attack_type == AttackType_Slash) {
+                v2 start = position - offset;
+                v2 end = position + offset + (20 * enemy->facing_direction);
+                f32 alpha = Clamp01(enemy->attack_offset / 0.4);
+                v2 attack_offset = Lerp(start, end, alpha);
+
+                position = attack_offset;
+                offset = V2(0, 0);
+            }
+
+            if (enemy->attack_type != AttackType_None) {
+                enemy->attack_time -= dt;
+                switch (enemy->attack_type) {
+                    case AttackType_Stab:  { enemy->attack_offset += (280 * dt); } break;
+                    case AttackType_Slash: { enemy->attack_offset += dt; } break;
+                }
+
+                if (enemy->attack_time < 0) {
+                    enemy->attack_type = AttackType_None;
+                    enemy->attack_offset = 0;
+                }
+
+                if (enemy->can_attack && CircleIntersection(position, 10,
+                            player->position, player->hitbox_radius))
+                {
+                    player->health--;
+                    enemy->can_attack = false;
+                }
+            }
+
             sfCircleShape *stabby_weapon = sfCircleShape_create();
             sfCircleShape_setRadius(stabby_weapon, 10);
             sfCircleShape_setOrigin(stabby_weapon, V2(10, 10));
@@ -175,29 +223,43 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         player->position += dt * V2(player_speed, 0);
     }
 
-    if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
-        if (player->has_stabby_weapon) {
-            if (player->has_shield) {
-                player->has_stabby_weapon = false;
-                player->has_shield = false;
-            }
-            else {
-                player->has_shield = true;
+    f32 slash_attack_time = 0.1;
+    if (player->attack_type == AttackType_None) {
+        player->can_attack = true;
+        if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+            if (player->has_stabby_weapon) {
+                player->attack_type = AttackType_Slash;
+                player->attack_time = 3.5 * slash_attack_time;
             }
         }
-        else {
-            if (player->has_shield) {
-                player->has_stabby_weapon = true;
-                player->has_shield = false;
-            }
-            else {
-                player->has_shield = true;
-            }
+        else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
+            player->attack_type = AttackType_Stab;
+            player->attack_time = 2.0 * slash_attack_time;
         }
     }
-	int i, j;
-	for(i = 0; i < play->AI_Count; i++){
-		for(j = i + 1; j < play->AI_Count; j++){
+
+    if (player->attack_type != AttackType_None) {
+        player->attack_time -= dt;
+        switch (player->attack_type) {
+            case AttackType_Stab: {
+                player->attack_offset += (dt * 280);
+            }
+            break;
+            case AttackType_Slash: {
+                player->attack_offset += dt;
+            }
+            break;
+        }
+
+        if (player->attack_time <= 0) {
+            player->attack_time = 0;
+            player->attack_type = AttackType_None;
+            player->attack_offset = 0;
+        }
+    }
+
+	for(u32 i = 0; i < play->AI_Count; i++){
+		for(u32 j = i + 1; j < play->AI_Count; j++){
     		AI_Player *enemy_i = &play->enemies[i];
     		AI_Player *enemy_j = &play->enemies[j];
 			v2 dir = Normalise(enemy_i->position - enemy_j->position);
@@ -208,7 +270,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			}
 		}
 	}
-	for(i = 0; i < play->AI_Count; i++){
+
+	for(u32 i = 0; i < play->AI_Count; i++){
 		AI_Player *enemy = &play->enemies[i];
 		v2 dir = Normalise(enemy->position - player->position);
 		f32 dist = Length(enemy->position - player->position);
@@ -232,13 +295,11 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         }
     }
 
-#if 1
     // This can be used to offset the camera slightly as the player moves the mouse further
     // away from the centre, however, it might need some lerp as it is a bit jarring
     f32 length = 0.15 * Length(input->unprojected_mouse - player->position);
     v2 dir = Normalise(input->unprojected_mouse - player->position);
     v2 camera_offset = length * dir;
-#endif
 
     // Move the view to centre on the player and update the render window to use the new view
     sfView_setCenter(state->view, player->position);
@@ -274,6 +335,39 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             sfRenderWindow_drawCircleShape(state->renderer, shield, 0);
 
             sfCircleShape_destroy(shield);
+
+            if (player->attack_type == AttackType_Stab) {
+                position = (player->position +
+                        (35 + player->attack_offset) * player->facing_direction);
+            }
+            else if (player->attack_type == AttackType_Slash) {
+                v2 start = position - offset;
+                v2 end = position + offset + (20 * player->facing_direction);
+                f32 alpha = Clamp01(player->attack_offset / slash_attack_time);
+                v2 attack_offset = Lerp(start, end, alpha);
+
+                position = attack_offset;
+                offset = V2(0, 0);
+            }
+
+            if (player->attack_type != AttackType_None) {
+                for (u32 it = 0; it < play->AI_Count; ++it) {
+                    AI_Player *ai = &play->enemies[it];
+                    if (player->can_attack &&
+                            CircleIntersection(ai->position, ai->hitbox_radius, position, 10))
+                    {
+                        ai->health--;
+                        s32 r = random(0, 10);
+                        ai->attack_type = AttackType_None;
+                        ai->attack_time = 0;
+                        ai->attack_offset = 0;
+                        ai->attack_wait_time = 1;
+                        ai->attacking = false;
+
+                        player->can_attack = false;
+                    }
+                }
+            }
 
             sfCircleShape *stabby_weapon = sfCircleShape_create();
             sfCircleShape_setRadius(stabby_weapon, 10);
@@ -322,8 +416,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
     sfCircleShape_destroy(hitbox);
 
-	for(i=0; i<play->AI_Count; i++)
+	for(u32 i = 0; i < play->AI_Count; i++) {
 		UpdateAIPlayer(state, play, dt, i);
+    }
 }
 
 internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment, Game_Input *input) {
@@ -511,7 +606,6 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 	}
 }
 
-
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
     if (!state->initialised) {
         InitialiseAssetManager(&state->assets, 100); // @Note: Can be increased if need be
@@ -521,6 +615,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		Level_State *level2 = CreateLevelState(state, LevelType_Logo);
 		Level_State *level3 = CreateLevelState(state, LevelType_Payment);
 		
+==== BASE ====
 
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
@@ -530,6 +625,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
         Controlled_Player *player = &play->players[0];
+        player->health = 100;
         player->speed_modifier = 1;
         player->hitbox_radius = 30;
         player->has_stabby_weapon = true;
@@ -547,6 +643,26 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             sfConvexShape_setPoint(player->shape, it, points[it]);
         }
 
+        play->AI_Count = 5;
+        for (u32 it = 0; it < play->AI_Count; ++it) {
+        	AI_Player *enemy = &play->enemies[it];
+            enemy->speed_modifier = 1;
+            enemy->hitbox_radius = 25;
+            enemy->position.x = random(-340, 1300);
+            enemy->has_stabby_weapon = true;
+            enemy->has_shield = true;
+            enemy-> attacking = false;
+            enemy->attack_wait_time = 0;
+            enemy->health = 50;
+            enemy->shape = sfConvexShape_create();
+            sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
+            sfConvexShape_setFillColor(enemy->shape, sfRed);
+            for (u32 it = 0; it < ArrayCount(points); ++it) {
+                sfConvexShape_setPoint(enemy->shape, it, points[it]);
+            }
+        }
+
+#if 0
 		AI_Player *enemy = &play->enemies[0];
 		enemy->speed_modifier = 1;
 		enemy->hitbox_radius = 25;
@@ -555,6 +671,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		enemy->has_shield = true;
 		enemy-> attacking = false;
 		enemy->attack_wait_time = 0;
+        enemy->health = 50;
         enemy->shape = sfConvexShape_create();
 		enemy->texture = LoadTexture(&state->assets, "sprites/fighter2.png");
         sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
@@ -599,7 +716,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         }
 
 		play->AI_Count = 3;
-
+#endif
         state->initialised = true;
     }
 
