@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>

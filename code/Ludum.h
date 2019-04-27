@@ -22,14 +22,38 @@ struct Controlled_Player {
     s32 family_hunger;
 };
 
+struct Menu_State {
+    bool test;
+};
+
+struct Play_State {
+    Controlled_Player players[4]; // Only one player supported for now!
+    sfCircleShape *arena;
+};
+
+enum Level_Type {
+    LevelType_None = 0,
+    LevelType_Play,
+    LevelType_Menu
+};
+
+struct Level_State {
+    Level_Type type;
+    union {
+        Play_State play;
+        Menu_State menu;
+    };
+
+    Level_State *next;
+};
+
 struct Game_State {
     bool initialised;
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
 
-    Controlled_Player players[4]; // Only one player supported for now!
-    sfCircleShape *arena;
+    Level_State *current_state;
 };
 
 #endif  // LUDUM_H_

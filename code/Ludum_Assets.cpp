@@ -3,7 +3,7 @@ internal void InitialiseAssetManager(Asset_Manager *manager, u32 count) {
     manager->asset_count = 0;
 
     umm assets_size = sizeof(Asset) * manager->max_asset_count;
-    manager->assets = cast(Asset *) malloc(assets_size);
+    manager->assets = cast(Asset *) Alloc(assets_size);
     memset(manager->assets, 0, assets_size);
 }
 
