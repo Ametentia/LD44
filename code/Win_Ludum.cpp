@@ -4,6 +4,7 @@
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>
+#include <SFML/Audio.h>
 
 #include "Ludum.h"
 #include "Ludum.cpp"
@@ -44,13 +45,17 @@ internal bool WinInitialise(Game_State *state) {
     if (win_show_console) { WinSetupConsole(); }
 
     bool result = CSFMLInitialise();
-    if (result) { state->renderer = global_window; }
+    if (result) {
+        state->renderer = global_window;
+        state->view = global_current_view;
+    }
 
     return result;
 }
 
 internal void WinShutdown(Game_State *state) {
     state->renderer = 0;
+    state->view = 0;
     CSFMLShutdown();
     if (win_show_console) { FreeConsole(); }
 }

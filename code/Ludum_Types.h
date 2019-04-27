@@ -42,6 +42,9 @@ typedef buffer string;
 #define Swap(a, b) { auto __temp = a; a = b; b = __temp; }
 #define Assert(exp) do { if (!(exp)) { printf("[Assertion] %s (%s:%d)\n", #exp, __FILE__, __LINE__); asm("int3"); } } while (0)
 
+#define Min(a, b) ((a) < (b) ? (a) : (b))
+#define Max(a, b) ((a) > (b) ? (a) : (b))
+
 #define U8_MAX  (0xFF)
 #define U16_MAX (0xFFFF)
 #define U32_MAX ((u32) -1)

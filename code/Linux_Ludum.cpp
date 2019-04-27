@@ -2,6 +2,7 @@
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>
+#include <SFML/Audio.h>
 
 #include "Ludum.h"
 #include "Ludum.cpp"
@@ -12,13 +13,17 @@ global bool global_running;
 
 internal bool LinuxInitialise(Game_State *state) {
     bool result = CSFMLInitialise();
-    if (result) { state->renderer = global_window; }
+    if (result) {
+        state->renderer = global_window;
+        state->view = global_current_view;
+    }
 
     return result;
 }
 
 internal void LinuxShutdown(Game_State *state) {
     state->renderer = 0;
+    state->view = 0;
     CSFMLShutdown();
 }
 
