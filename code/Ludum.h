@@ -81,7 +81,7 @@ struct Menu_State {
 struct Play_State {
     Controlled_Player players[4]; // Only one player supported for now!
 	AI_Player enemies[10]; // 10 as a soft max for now
-	u8 AI_Count;
+	u8 ai_count;
     sfCircleShape *arena;
 };
 struct Logo_State {
