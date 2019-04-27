@@ -334,21 +334,13 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 		payment->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
 	}
 	sfRectangleShape *char_rect = sfRectangleShape_create();
-	sfRectangleShape_setPosition(char_rect, V2(40, 500));
+	sfRectangleShape_setPosition(char_rect, V2(-30, 10));
 	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets, 
 				payment->character), false);
-	sfRectangleShape_setSize(char_rect, V2(576, 360*2));
+	sfRectangleShape_setSize(char_rect, V2(864, 1080));
 	sfRectangleShape_setFillColor(char_rect, CreateColour(1,1,1,1));
 	sfRenderWindow_drawRectangleShape(state->renderer, char_rect, NULL);
 	sfRectangleShape_destroy(char_rect);
-
-
-	sfRectangleShape *background_stats = sfRectangleShape_create();
-	sfRectangleShape_setPosition(background_stats, V2(50, 50));
-	sfRectangleShape_setFillColor(background_stats, CreateColour(1,0,1,1));
-	sfRectangleShape_setSize(background_stats, V2(560, 480));
-	sfRenderWindow_drawRectangleShape(state->renderer, background_stats, NULL);
-	sfRectangleShape_destroy(background_stats);
 
 	sfRectangleShape *background_options = sfRectangleShape_create();
 	sfRectangleShape_setPosition(background_options, V2(800, 50));
@@ -362,13 +354,10 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 						   "Money: None\n"
 						   "Another Stat: Real Bad\n"
 						   "Another Stat: Disaster\n"
-						   "Matt's Back: Hurts bad\n"
-						   "Son's health: Dead\n"
-						   "Daughter's health: Murdered\n"
 						   "Reasons to continue: 0");
 	sfText_setCharacterSize(Stats, 40);
 	sfText_setFont(Stats, GetFont(&state->assets, payment->font));
-	sfText_setPosition(Stats, V2(60, 60));
+	sfText_setPosition(Stats, V2(810, 60));
 	sfText_setFillColor(Stats, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, Stats, NULL);
 	sfText_destroy(Stats);
@@ -377,7 +366,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfText_setString(Heading, "Domestic");
 	sfText_setCharacterSize(Heading, 64);
 	sfText_setFont(Heading, GetFont(&state->assets, payment->font));
-	sfText_setPosition(Heading, V2(810, 60));
+	sfText_setPosition(Heading, V2(810, 350));
 	sfText_setFillColor(Heading, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, Heading, NULL);
 	sfText_setString(Heading, "Equipment");
@@ -386,34 +375,21 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfText_destroy(Heading);
 
 	sfText *Domestic_Text = sfText_create();
-	sfText_setString(Domestic_Text, "Sword");
+	sfText_setString(Domestic_Text, "Food");
 	sfText_setCharacterSize(Domestic_Text, 40);
 	sfText_setFont(Domestic_Text, GetFont(&state->assets, payment->font));
-	sfText_setPosition(Domestic_Text, V2(810, 130));
+	sfText_setPosition(Domestic_Text, V2(810, 420));
 	sfText_setFillColor(Domestic_Text, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
-	sfText_setString(Domestic_Text, "Spear");
-	sfText_setPosition(Domestic_Text, V2(810, 250));
-	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
-	sfText_setString(Domestic_Text, "Shield");
-	sfText_setPosition(Domestic_Text, V2(810, 370));
 	sfRenderWindow_drawText(state->renderer, Domestic_Text, NULL);
 	sfText_destroy(Domestic_Text);
 
 	sfText *Domestic_desc = sfText_create();
-	sfText_setString(Domestic_desc, "	If you want your enemies to look more stripey");
+	sfText_setString(Domestic_desc, "	Your family like to eat.");
 	sfText_setCharacterSize(Domestic_desc, 34);
 	sfText_setFont(Domestic_desc, GetFont(&state->assets, payment->font));
-	sfText_setPosition(Domestic_desc, V2(810, 190));
+	sfText_setPosition(Domestic_desc, V2(810, 460));
 	sfText_setFillColor(Domestic_desc, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
-	sfText_setString(Domestic_desc, "	If you want someone roughly a meter away full of holes.");
-	sfText_setPosition(Domestic_desc, V2(810, 310));
-	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
-	sfText_setString(Domestic_desc, "	If you don't like sharp hurty things touching you.");
-	sfText_setPosition(Domestic_desc, V2(810, 430));
-	sfRenderWindow_drawText(state->renderer, Domestic_desc, NULL);
-	sfText_destroy(Domestic_desc);
 
 	sfText *Equipment_Text = sfText_create();
 	sfText_setString(Equipment_Text, "Sword");
