@@ -24,7 +24,7 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
 
     if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
         Level_State *level = RemoveLevelState(state);
-        Free(level);
+	        Free(level);
     }
 
 }
@@ -66,6 +66,11 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 		enemy->attacking = true;
 		enemy->attack_start = enemy->position;
 		enemy->attack_dir = Normalise(player->position - enemy->position);
+	}
+	v2 dir = Normalise(V2(960, 540) - enemy->position);
+	f32 dist = Length(V2(960, 540) - enemy->position);
+	if ((enemy->hitbox_radius + dist) >= 1000) {
+		enemy->position += (dist - (1000 - enemy->hitbox_radius)) * dir;
 	}
     sfCircleShape_setPosition(enemy->shape, enemy->position);
     sfRenderWindow_drawCircleShape(state->renderer, enemy->shape, 0);
@@ -115,6 +120,28 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             }
         }
     }
+	int i, j;
+	for(i = 0; i < play->AI_Count; i++){
+		for(j = i + 1; j < play->AI_Count; j++){
+    		AI_Player *enemy_i = &play->enemies[i];
+    		AI_Player *enemy_j = &play->enemies[j];
+			v2 dir = Normalise(enemy_i->position - enemy_j->position);
+			f32 dist = Length(enemy_i->position - enemy_j->position);
+			if ((enemy_i->hitbox_radius + enemy_j->hitbox_radius) >= dist) {
+				enemy_i->position += ((enemy_i->hitbox_radius + enemy_j->hitbox_radius) - (dist))/2 * dir;
+				enemy_j->position -= ((enemy_i->hitbox_radius + enemy_j->hitbox_radius) - (dist))/2 * dir;
+			}
+		}
+	}
+	for(i = 0; i < play->AI_Count; i++){
+		AI_Player *enemy = &play->enemies[i];
+		v2 dir = Normalise(enemy->position - player->position);
+		f32 dist = Length(enemy->position - player->position);
+		if ((enemy->hitbox_radius + player->hitbox_radius) >= dist) {
+			enemy->position += ((enemy->hitbox_radius + player->hitbox_radius) - (dist))/2 * dir;
+			player->position -= ((enemy->hitbox_radius + player->hitbox_radius) - (dist))/2 * dir;
+		}
+	}
 
 
     v4i colour = CreateColour(1, 0, 0);
@@ -220,8 +247,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
     sfCircleShape_destroy(hitbox);
 
-	UpdateAIPlayer(state, play, dt, 0);
-	UpdateAIPlayer(state, play, dt, 1);
+	for(i=0; i<play->AI_Count; i++)
+		UpdateAIPlayer(state, play, dt, i);
 }
 
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
@@ -265,17 +292,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setOrigin(enemy->shape, V2(20, 20));
         sfCircleShape_setFillColor(enemy->shape, CreateColour(1, 0, 0, 1));
 
-		AI_Player *enemy_2 = &play->enemies[1];
-		enemy_2->speed_modifier = 1;
-		enemy_2->hitbox_radius = 25;
-		enemy_2->shape = sfCircleShape_create();
-		enemy_2->position.x = 960;
-		enemy_2->position.y = 960;
-		enemy_2-> attacking = false;
-		enemy_2->attack_wait_time = 0;
-        sfCircleShape_setRadius(enemy_2->shape, enemy_2->hitbox_radius);
-        sfCircleShape_setOrigin(enemy_2->shape, V2(20, 20));
-        sfCircleShape_setFillColor(enemy_2->shape, CreateColour(1, 0, 0, 1));
+		play->AI_Count = 1;
 
         state->initialised = true;
     }
