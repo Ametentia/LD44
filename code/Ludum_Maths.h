@@ -18,7 +18,7 @@
 #define Lerp(start, end, alpha) (((end) * (alpha)) + ((start) * (1 - (alpha))))
 
 inline s32 random(s32 min, s32 max) {
-	return (rand() % (max - min)) + max;
+	return (rand() % (max - min)) + min;
 }
 
 inline v2 V2(f32 x, f32 y) {
