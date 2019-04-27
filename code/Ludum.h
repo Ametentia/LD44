@@ -22,12 +22,30 @@ struct Controlled_Player {
     s32 family_hunger;
 };
 
+struct AI_Player {
+	v2 position;
+	sfCircleShape *shape;
+	f32 hitbox_radius;
+
+	u32 health;
+	u32 max_health;
+
+    f32 speed_modifier;
+    f32 attack_modifier;
+	f32 attack_wait_time;
+	v2 attack_dir;
+	v2 attack_start;
+	s8 rotate_dir;
+	bool attacking;
+};
+
 struct Menu_State {
     bool test;
 };
 
 struct Play_State {
     Controlled_Player players[4]; // Only one player supported for now!
+	AI_Player enemies[10]; // 10 as a soft max for now
     sfCircleShape *arena;
 };
 
