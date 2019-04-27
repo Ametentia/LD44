@@ -310,7 +310,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
 	if(!dialog->initialised) {
-		FILE *file = fopen("data/test.dialog", "r");
+		FILE *file = fopen("test.dialog", "r");
 		if (file != NULL) {
 			char line[128];
 			int count = 0;
@@ -321,23 +321,24 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 			fclose(file);
 			dialog->line_count = count;
 		}
-		FILE *file2 = fopen("data/test.sprites", "r");
+		FILE *file2 = fopen("test.sprites", "r");
 		if (file2 != NULL) {
 			char line[128];
 			int count = 0;
 			while (fgets(line, sizeof line, file2) != NULL) {
-				dialog->characters[count] = sfTexture_createFromFile(strtok(line, "\n"), NULL);
+				dialog->characters[count] = LoadTexture(&state->assets, strtok(line, "\n"));
 				count++;
 			}
 			fclose(file2);
 			dialog->line_count = count;
 		}
-		dialog->font = sfFont_createFromFile("data/fonts/Ubuntu.ttf");
+		dialog->font = sfFont_createFromFile("fonts/Ubuntu.ttf");
 		dialog->initialised = true;
 	}
 	sfRectangleShape *character = sfRectangleShape_create();
 	sfRectangleShape_setPosition(character, V2(10 + (1400*(dialog->current_line%2)), 300));
-	sfRectangleShape_setTexture(character, dialog->characters[dialog->current_line], false);
+	sfRectangleShape_setTexture(character, GetTexture(&state->assets, 
+				dialog->characters[dialog->current_line]), false);
 	sfRectangleShape_setSize(character, V2(240*2, 360*2));
 	sfRenderWindow_drawRectangleShape(state->renderer, character, NULL);
 	sfRectangleShape_destroy(character);

@@ -61,7 +61,7 @@ struct Play_State {
 struct Dialog_State {
 	bool initialised = false;
 	char dialog[30][128];
-	sfTexture *characters[4];
+	Asset_Handle characters[4];
 	sfFont *font;
 	u8 line_count;
 	u8 current_line = 0;
