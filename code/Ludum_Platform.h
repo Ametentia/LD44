@@ -18,9 +18,10 @@ struct Game_Controller {
             Game_Button move_right;
             Game_Button move_up;
             Game_Button move_down;
+			Game_Button accept;
         };
 
-        Game_Button buttons[4];
+        Game_Button buttons[5];
     };
 };
 

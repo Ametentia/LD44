@@ -90,6 +90,11 @@ internal void CSFMLProcessEvents(Game_Input *current, Game_Input *prev) {
                                 prev_keyboard->move_right, pressed);
                     }
                     break;
+                    case sfKeySpace: {
+                        CSFMLProcessButtonEvent(&current_keyboard->accept,
+                                prev_keyboard->accept, pressed);
+                    }
+                    break;
                 }
             }
             break;
