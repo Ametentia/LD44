@@ -44,11 +44,16 @@ struct Controlled_Player {
 
 struct AI_Player {
 	v2 position;
-	sfCircleShape *shape;
 	f32 hitbox_radius;
+
+    v2 facing_direction;
+    sfConvexShape *shape;
 
 	s32 health;
 	s32 max_health;
+
+    bool has_shield;
+    bool has_stabby_weapon;
 
     f32 speed_modifier;
     f32 attack_modifier;
@@ -69,11 +74,20 @@ struct Play_State {
 	u8 AI_Count;
     sfCircleShape *arena;
 };
+struct Dialog_State {
+	bool initialised = false;
+	char dialog[30][128];
+	sfTexture *characters[4];
+	sfFont *font;
+	u8 line_count;
+	u8 current_line = 0;
+};
 
 enum Level_Type {
     LevelType_None = 0,
     LevelType_Play,
-    LevelType_Menu
+    LevelType_Menu,
+    LevelType_Dialog
 };
 
 struct Level_State {
@@ -81,6 +95,7 @@ struct Level_State {
     union {
         Play_State play;
         Menu_State menu;
+		Dialog_State dialog;
     };
 
     Level_State *next;
