@@ -256,7 +256,8 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
 	}
 	for(int i = 0; i < 500; i++) {
 		sfConvexShape_setPosition(play->blood_shape, play->stale_blood[i]);
-		sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
+		if(play->stale_blood[i].x != 0)
+			sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
 	}
 }
 
@@ -388,25 +389,26 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
     if (player->has_stabby_weapon) {
-        v2 position = (player->position + 60 * player->facing_direction);
+        v2 position = (player->position + 30 * player->facing_direction);
         if (player->has_shield) {
             v2 offset = 40 * Normalise(Perp(player->facing_direction));
             // @Note: Should probably store this somewhere
             sfConvexShape *shield = sfConvexShape_create();
 
             v2 points[] = {
-                V2(-10, -10), V2(-10,  10),
-                V2( 10,  10), V2( 10, -10)
+                V2(-30, -15), V2(-30,  15),
+                V2( 30,  15), V2( 30, -15)
             };
 
             sfConvexShape_setPointCount(shield, ArrayCount(points));
             for (u32 it = 0; it < ArrayCount(points); ++it) {
                 sfConvexShape_setPoint(shield, it, points[it]);
             }
+			sfConvexShape_setRotation(shield, Degrees(angle));
             // @Todo: Rotation
 
             sfConvexShape_setTexture(shield,
-                    GetTexture(&state->assets, player->shield_texture), true);
+                    GetTexture(&state->assets, player->shield_texture), false);
             sfConvexShape_setPosition(shield, position + offset);
 
             sfRenderWindow_drawConvexShape(state->renderer, shield, 0);
@@ -710,6 +712,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
         sfCircleShape_setOrigin(play->arena, V2(1000, 1000));
+		Asset_Handle t = LoadTexture(&state->assets, "sprites/Floor.png");
+		sfCircleShape_setTexture(play->arena, GetTexture(&state->assets, t), false);
         sfCircleShape_setPointCount(play->arena, 45);
         sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
         sfCircleShape_setPosition(play->arena, V2(960, 540));
@@ -746,7 +750,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        play->ai_count = 2;
+        play->ai_count = 1;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
             enemy->speed_modifier = 1;
