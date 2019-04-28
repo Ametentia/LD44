@@ -64,6 +64,8 @@ internal void WinShutdown(Game_State *state) {
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    SetCurrentDirectory("..\\data");
+
     Game_Input inputs[2] = {};
     Game_Input *current_input = &inputs[0];
     Game_Input *prev_input    = &inputs[1];

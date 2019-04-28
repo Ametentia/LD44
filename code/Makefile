@@ -11,7 +11,7 @@ DEFINES  := -D$(UPPER_PROJECT)_INTERNAL -D$(UPPER_PROJECT)_SLOW
 ifeq ($(OS), Windows_NT)
 	PLATFORM  = Win
 	LINKER    = /link /LIBPATH:..\libs\CSFML\lib csfml-audio-d.lib csfml-graphics-d.lib csfml-window-d.lib csfml-system-d.lib opengl32.lib kernel32.lib
-	COMPILER += -imsvc ..\libs\CSFML\include /MDd /MTd /Zi /Od --driver-mode=cl /Fe$(PROJECT).exe
+	COMPILER += -imsvc ..\libs\CSFML\include /MDd /Zi /Od --driver-mode=cl /Fe$(PROJECT).exe
 	DEFINES  += -D$(UPPER_PROJECT)_WIN
 else
 	SHELL  = /bin/bash

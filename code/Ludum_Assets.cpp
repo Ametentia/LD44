@@ -1,6 +1,6 @@
 internal void InitialiseAssetManager(Asset_Manager *manager, u32 count) {
     manager->max_asset_count = count;
-    manager->asset_count = 0;
+    manager->asset_count = 1;
 
     umm assets_size = sizeof(Asset) * manager->max_asset_count;
     manager->assets = cast(Asset *) Alloc(assets_size);
@@ -66,6 +66,8 @@ internal Asset *GetAsset(Asset_Manager *manager, u32 index) {
 }
 
 internal sfTexture *GetTexture(Asset_Manager *manager, Asset_Handle handle) {
+    if (handle.value == 0) { return 0; }
+
     Asset *asset = GetAsset(manager, handle.value);
     Assert(asset->type == AssetType_Texture && asset->loaded);
 
@@ -74,6 +76,8 @@ internal sfTexture *GetTexture(Asset_Manager *manager, Asset_Handle handle) {
 }
 
 internal sfFont *GetFont(Asset_Manager *manager, Asset_Handle handle) {
+    if (handle.value == 0) { return 0; }
+
     Asset *asset = GetAsset(manager, handle.value);
     Assert(asset->type == AssetType_Font && asset->loaded);
 
@@ -82,6 +86,8 @@ internal sfFont *GetFont(Asset_Manager *manager, Asset_Handle handle) {
 }
 
 internal sfSoundBuffer *GetSound(Asset_Manager *manager, Asset_Handle handle) {
+    if (handle.value == 0) { return 0; }
+
     Asset *asset = GetAsset(manager, handle.value);
     Assert(asset->type == AssetType_Sound && asset->loaded);
 
@@ -90,6 +96,8 @@ internal sfSoundBuffer *GetSound(Asset_Manager *manager, Asset_Handle handle) {
 }
 
 internal sfMusic *GetMusic(Asset_Manager *manager, Asset_Handle handle) {
+    if (handle.value == 0) { return 0; }
+
     Asset *asset = GetAsset(manager, handle.value);
     Assert(asset->type == AssetType_Sound && asset->loaded);
 
