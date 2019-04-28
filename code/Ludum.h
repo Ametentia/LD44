@@ -7,15 +7,7 @@
 #include "Ludum_Platform.h"
 #include "Ludum_Assets.h"
 
-enum Attack_Type {
-    AttackType_None,
-
-    AttackType_Punch,
-
-    AttackType_ReverseStab,
-    AttackType_Stab,
-    AttackType_Slash,
-};
+#include "Ludum_Entity.h"
 
 struct Moving_Blood {
 	bool active = false;
@@ -26,63 +18,7 @@ struct Moving_Blood {
 };
 
 
-struct Controlled_Player {
-    v2 position;
-    v2 facing_direction;
-    // sfSprite *sprite; @Note: This will be used once we have texturing etc.
-    sfConvexShape *shape;
-	Asset_Handle texture;
-    Asset_Handle shield_texture;
 
-    f32 hitbox_radius; // Circle collision detection
-
-    bool has_shield;
-    bool has_stabby_weapon;
-
-    f32 health; // Probably should be float
-    f32 max_health;
-    f32 invuln_time;
-
-    f32 speed_modifier;
-    f32 attack_modifier;
-
-    bool can_attack;
-    Attack_Type attack_type;
-    f32 attack_time;
-    f32 attack_offset;
-
-    s32 family_hunger;
-	s32 balence;
-};
-
-struct AI_Player {
-	v2 position;
-	f32 hitbox_radius;
-
-    v2 facing_direction;
-    sfConvexShape *shape;
-
-	f32 health;
-
-    bool has_shield;
-    bool has_stabby_weapon;
-	Asset_Handle texture;
-
-    f32 speed_modifier;
-    f32 attack_modifier;
-	f32 attack_wait_time;
-	v2 attack_dir;
-	v2 attack_start;
-
-    bool can_attack;
-    Attack_Type attack_type;
-    f32 attack_time;
-    f32 attack_offset;
-
-	s8 rotate_dir;
-	bool circling = false;
-	bool attacking;
-};
 
 struct Menu_State {
     bool test;
@@ -151,6 +87,9 @@ struct Game_State {
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
+
+    Asset_Handle weapon_textures[WeaponType_Count];
+    Asset_Handle player_textures[3];
 
     Level_State *current_state;
 };

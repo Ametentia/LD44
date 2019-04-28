@@ -1,4 +1,5 @@
 #include "Ludum_Assets.cpp"
+#include "Ludum_Entity.cpp"
 
 internal Level_State *CreateLevelState(Game_State *state, Level_Type type) {
     Level_State *result = cast(Level_State *) Alloc(sizeof(Level_State));
@@ -285,6 +286,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         player->position += dt * V2(player_speed, 0);
     }
 
+#if 0
     f32 slash_attack_time = 0.1;
     if (player->attack_type == AttackType_None) {
         player->can_attack = true;
@@ -299,6 +301,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             player->attack_time = 2.0 * slash_attack_time;
         }
     }
+#endif
 
     if (player->attack_type != AttackType_None) {
         player->attack_time -= dt;
@@ -387,6 +390,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 	if(player->health > 0)
 		sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
+#if 0
     if (player->has_stabby_weapon) {
         v2 position = (player->position + 60 * player->facing_direction);
         if (player->has_shield) {
@@ -490,7 +494,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         sfRenderWindow_drawCircleShape(state->renderer, shield, 0);
         sfCircleShape_destroy(shield);
     }
-
+#endif
 
     // @Debug: This is showing the hitbox
     sfCircleShape *hitbox = sfCircleShape_create();
@@ -518,7 +522,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	}
 	sfRectangleShape *char_rect = sfRectangleShape_create();
 	sfRectangleShape_setPosition(char_rect, V2(-30, 10));
-	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets, 
+	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets,
 				payment->character), false);
 	sfRectangleShape_setSize(char_rect, V2(864, 1080));
 	sfRectangleShape_setFillColor(char_rect, CreateColour(1,1,1,1));
@@ -705,8 +709,11 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         InitialiseAssetManager(&state->assets, 100); // @Note: Can be increased if need be
 
         Level_State *level = CreateLevelState(state, LevelType_Play);
+
+
+        // @Todo: This should probably move to the UpdateRenderPlayState
         Play_State *play = &level->play;
-		
+
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
         sfCircleShape_setOrigin(play->arena, V2(1000, 1000));
@@ -714,17 +721,30 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
+        // @Todo: Load weapon textures here
+
         Controlled_Player *player = &play->players[0];
+
+        Weapon weapons[2] = {};
+        weapons[0] = PrefabWeapon(state, WeaponType_Sword);
+        weapons[1] = PrefabWeapon(state, WeaponType_Shield);
+
+        Player_Stats stats = GetDefaultPlayerStats();
+
+        InitialisePlayer(state, player, V2(960, 540), weapons, 2, stats);
+
+        v2 points[4] = {
+            V2(-80, -40), V2(-80,  40),
+            V2( 80,  40), V2( 80, -40)
+        };
+#if 0
         player->health = 5;
         player->speed_modifier = 1;
         player->hitbox_radius = 30;
         player->has_stabby_weapon = true;
 		player->position = V2(960, 540);
         player->has_shield = true;
-        v2 points[4] = {
-            V2(-80, -40), V2(-80,  40),
-            V2( 80,  40), V2( 80, -40)
-        };
+
         player->shape = sfConvexShape_create();
         sfConvexShape_setPointCount(player->shape, ArrayCount(points));
         //sfConvexShape_setFillColor(player->shape, sfRed);
@@ -734,6 +754,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(player->shape, it, points[it]);
         }
+#endif
 
         play->blood_shape = sfConvexShape_create();
 		v2 blood_points[4] = {
