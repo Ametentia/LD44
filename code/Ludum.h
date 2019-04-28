@@ -17,6 +17,14 @@ enum Attack_Type {
     AttackType_Slash,
 };
 
+struct Moving_Blood {
+	bool active = false;
+	v2 position;
+	v2 dir;
+	f32 speed = 20;
+	f32 lifetime;
+};
+
 
 struct Controlled_Player {
     v2 position;
@@ -83,8 +91,13 @@ struct Menu_State {
 struct Play_State {
     Controlled_Player players[4]; // Only one player supported for now!
 	AI_Player enemies[10]; // 10 as a soft max for now
-	u8 AI_Count;
+	u8 ai_count;
     sfCircleShape *arena;
+	Moving_Blood active_blood[75];
+	v2 stale_blood[500];
+	u32 stale_blood_count;
+	u8 moving_blood_count;
+	sfConvexShape *blood_shape;
 };
 struct Logo_State {
 	bool initialised = false;
