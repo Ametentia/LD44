@@ -96,7 +96,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 				direction += Normalise(play->enemies[i].position -enemy->position);
 			}
 		}
-		enemy->position -= direction * enemy->speed_modifier * 700 * dt;
+		enemy->position -= direction * enemy->speed_modifier * 500 * dt;
 	}
 	else if(enemy->attack_wait_time < 0){
 		enemy->attacking = true;
@@ -108,6 +108,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 	if ((enemy->hitbox_radius + dist) >= 1000) {
 		enemy->position += (dist - (1000 - enemy->hitbox_radius)) * dir;
 	}
+
 	if(!enemy->attacking) {
 		enemy->facing_direction = Normalise(player->position - enemy->position);
 		f32 angle = (PI32 / 2.0) + Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
@@ -323,22 +324,44 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
     if (player->has_stabby_weapon) {
-        v2 position = (player->position + 35 * player->facing_direction);
+        v2 position = (player->position + 60 * player->facing_direction);
         if (player->has_shield) {
-            v2 offset = 20 * Normalise(Perp(player->facing_direction));
+            v2 offset = 40 * Normalise(Perp(player->facing_direction));
+            // @Note: Should probably store this somewhere
+            sfConvexShape *shield = sfConvexShape_create();
+
+            v2 points[] = {
+                V2(-10, -10), V2(-10,  10),
+                V2( 10,  10), V2( 10, -10)
+            };
+
+            sfConvexShape_setPointCount(shield, ArrayCount(points));
+            for (u32 it = 0; it < ArrayCount(points); ++it) {
+                sfConvexShape_setPoint(shield, it, points[it]);
+            }
+            // @Todo: Rotation
+
+            sfConvexShape_setTexture(shield,
+                    GetTexture(&state->assets, player->shield_texture), true);
+            sfConvexShape_setPosition(shield, position + offset);
+
+            sfRenderWindow_drawConvexShape(state->renderer, shield, 0);
+
+#if 0
             sfCircleShape *shield = sfCircleShape_create();
-            sfCircleShape_setRadius(shield, 10);
-            sfCircleShape_setOrigin(shield, V2(10, 10));
+            sfCircleShape_setRadius(shield, 20);
+            sfCircleShape_setOrigin(shield, V2(20, 20));
             sfCircleShape_setFillColor(shield, CreateColour(1, 1, 0));
             sfCircleShape_setPosition(shield, position + offset);
 
             sfRenderWindow_drawCircleShape(state->renderer, shield, 0);
 
             sfCircleShape_destroy(shield);
+#endif
 
             if (player->attack_type == AttackType_Stab) {
                 position = (player->position +
-                        (35 + player->attack_offset) * player->facing_direction);
+                        (60 + player->attack_offset) * player->facing_direction);
             }
             else if (player->attack_type == AttackType_Slash) {
                 v2 start = position - offset;
@@ -354,10 +377,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
                 for (u32 it = 0; it < play->AI_Count; ++it) {
                     AI_Player *ai = &play->enemies[it];
                     if (player->can_attack &&
-                            CircleIntersection(ai->position, ai->hitbox_radius, position, 10))
+                            CircleIntersection(ai->position, ai->hitbox_radius, position, 20))
                     {
                         ai->health--;
-                        s32 r = random(0, 10);
                         ai->attack_type = AttackType_None;
                         ai->attack_time = 0;
                         ai->attack_offset = 0;
@@ -370,8 +392,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             }
 
             sfCircleShape *stabby_weapon = sfCircleShape_create();
-            sfCircleShape_setRadius(stabby_weapon, 10);
-            sfCircleShape_setOrigin(stabby_weapon, V2(10, 10));
+            sfCircleShape_setRadius(stabby_weapon, 20);
+            sfCircleShape_setOrigin(stabby_weapon, V2(20, 20));
             sfCircleShape_setFillColor(stabby_weapon, CreateColour(0, 1, 1));
             sfCircleShape_setPosition(stabby_weapon, position - offset);
 
@@ -430,7 +452,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	}
 	sfRectangleShape *char_rect = sfRectangleShape_create();
 	sfRectangleShape_setPosition(char_rect, V2(40, 500));
-	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets, 
+	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets,
 				payment->character), false);
 	sfRectangleShape_setSize(char_rect, V2(576, 360*2));
 	sfRectangleShape_setFillColor(char_rect, CreateColour(1,1,1,1));
@@ -552,11 +574,11 @@ internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_In
 		logo->initialised = true;
 	}
 	logo->rate += logo->delta_rate;
-	logo->opacity = Clamp(logo->opacity + input->delta_time * 2.5 * logo->rate, -0.1, 255);	
+	logo->opacity = Clamp(logo->opacity + input->delta_time * 2.5 * logo->rate, -0.1, 255);
 
 	sfRectangleShape *logo_rect = sfRectangleShape_create();
 	sfRectangleShape_setPosition(logo_rect, V2((1920-1080)/2, 0));
-	sfRectangleShape_setTexture(logo_rect, GetTexture(&state->assets, 
+	sfRectangleShape_setTexture(logo_rect, GetTexture(&state->assets,
 				logo->texture), false);
 	sfRectangleShape_setSize(logo_rect, V2(1080,1080));
 	sfRectangleShape_setFillColor(logo_rect, CreateColour(1,1,1,logo->opacity/255));
@@ -600,12 +622,11 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 	}
 	sfRectangleShape *character = sfRectangleShape_create();
 	sfRectangleShape_setPosition(character, V2(10 + (1400*(dialog->current_line%2)), 300));
-	sfRectangleShape_setTexture(character, GetTexture(&state->assets, 
+	sfRectangleShape_setTexture(character, GetTexture(&state->assets,
 				dialog->characters[dialog->current_line]), false);
 	sfRectangleShape_setSize(character, V2(240*2, 360*2));
 	sfRenderWindow_drawRectangleShape(state->renderer, character, NULL);
 	sfRectangleShape_destroy(character);
-
 
 	sfRectangleShape *background = sfRectangleShape_create();
 	sfRectangleShape_setPosition(background, V2(10, 940));
@@ -613,7 +634,6 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 	sfRectangleShape_setSize(background, V2(1900, 110));
 	sfRenderWindow_drawRectangleShape(state->renderer, background, NULL);
 	sfRectangleShape_destroy(background);
-
 
 	sfText *Text = sfText_create();
 	sfText_setString(Text, dialog->dialog[dialog->current_line]);
@@ -636,10 +656,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 
         Level_State *level = CreateLevelState(state, LevelType_Play);
         Play_State *play = &level->play;
-		Level_State *level2 = CreateLevelState(state, LevelType_Logo);
-		Level_State *level3 = CreateLevelState(state, LevelType_Payment);
-		
-==== BASE ====
+		//Level_State *level2 = CreateLevelState(state, LevelType_Logo);
+		//Level_State *level3 = CreateLevelState(state, LevelType_Payment);
 
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
@@ -661,7 +679,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         player->shape = sfConvexShape_create();
         sfConvexShape_setPointCount(player->shape, ArrayCount(points));
         //sfConvexShape_setFillColor(player->shape, sfRed);
-		player->texture = LoadTexture(&state->assets, "sprites/fighter1.png");
+		player->texture = LoadTexture(&state->assets, "sprites/LucySprite.png");
+        player->shield_texture = LoadTexture(&state->assets, "sprites/LucyShield.png");
 		sfConvexShape_setTexture(player->shape, GetTexture(&state->assets, player->texture), false);
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(player->shape, it, points[it]);

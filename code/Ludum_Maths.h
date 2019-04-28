@@ -11,7 +11,6 @@
 #define Sin(x) sinf(x)
 #define Tan(x) tanf(x)
 #define Sqrt(x) sqrtf(x)
-#define Clamp(x, min, max) Max(min, Min(x, max))
 
 #define Clamp(x, min, max) (Min(Max(x, min), max))
 #define Clamp01(x) (Clamp(x, 0, 1))

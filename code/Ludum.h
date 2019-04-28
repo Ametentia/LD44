@@ -24,6 +24,8 @@ struct Controlled_Player {
     // sfSprite *sprite; @Note: This will be used once we have texturing etc.
     sfConvexShape *shape;
 	Asset_Handle texture;
+    Asset_Handle shield_texture;
+
     f32 hitbox_radius; // Circle collision detection
 
     bool has_shield;
@@ -107,7 +109,7 @@ struct Payment_State {
 	Asset_Handle character;
 	Asset_Handle font;
 	bool initialised = false;
-};	
+};
 
 enum Level_Type {
     LevelType_None = 0,
