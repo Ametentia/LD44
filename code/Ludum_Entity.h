@@ -13,8 +13,10 @@ struct Player_Stats {
 enum Attack_Type {
     AttackType_None = 0,
 
+    AttackType_Block,
     AttackType_Stab,
     AttackType_Slash,
+    AttackType_ReturningSlash, // @Hack: To prevent slashes from jumping
     AttackType_Throw
 };
 
@@ -31,7 +33,13 @@ struct Weapon {
     Asset_Handle texture_handle;
 
     Weapon_Type type;
+
+    // Copied information when one of the weapons is used
     bool can_attack;
+    Attack_Type attacking_type;
+    f32 attacking_time;
+    f32 attack_offset;
+
     f32 attack_or_defence_modifier;
 
     Attack_Type attack_1;
@@ -44,8 +52,7 @@ struct Weapon {
 struct Controlled_Player {
     v2 position;
     v2 facing_direction;
-    // sfSprite *sprite; @Note: This will be used once we have texturing etc.
-    sfConvexShape *shape;
+
 	Asset_Handle texture;
     Asset_Handle shield_texture;
 
@@ -60,11 +67,6 @@ struct Controlled_Player {
 
     f32 speed_modifier;
     f32 strength_modifier;
-
-    bool can_attack;
-    Attack_Type attack_type;
-    f32 attack_time;
-    f32 attack_offset;
 
     s32 family_hunger;
 	s32 balance;

@@ -17,9 +17,6 @@ struct Moving_Blood {
 	f32 lifetime;
 };
 
-
-
-
 struct Menu_State {
     bool test;
 };

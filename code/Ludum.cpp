@@ -27,7 +27,6 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
         Level_State *level = RemoveLevelState(state);
 	        Free(level);
     }
-
 }
 
 internal void AddBlood(Play_State *play, Controlled_Player *player, AI_Player *enemy) {
@@ -265,27 +264,7 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
 
 internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
-
-    Game_Controller *controller = GameGetController(input, 0);
-    Assert(controller->is_connected);
-
     Controlled_Player *player = &play->players[0];
-
-    f32 dt = input->delta_time;
-    f32 player_speed = 700 * player->speed_modifier;
-    if (IsPressed(controller->move_up)) {
-        player->position += dt * V2(0, -player_speed);
-    }
-    else if (IsPressed(controller->move_down)) {
-        player->position += dt * V2(0, player_speed);
-    }
-
-    if (IsPressed(controller->move_left)) {
-        player->position += dt * V2(-player_speed, 0);
-    }
-    else if (IsPressed(controller->move_right)) {
-        player->position += dt * V2(player_speed, 0);
-    }
 
 #if 0
     f32 slash_attack_time = 0.1;
@@ -302,9 +281,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             player->attack_time = 2.0 * slash_attack_time;
         }
     }
-#endif
 
-    if (player->attack_type != AttackType_None) {
         player->attack_time -= dt;
         switch (player->attack_type) {
             case AttackType_Stab: {
@@ -323,6 +300,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             player->attack_offset = 0;
         }
     }
+#endif
 
 	for(u32 i = 0; i < play->ai_count; i++){
 		for(u32 j = i + 1; j < play->ai_count; j++){
@@ -349,17 +327,6 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
 
     v4i colour = CreateColour(1, 0, 0);
-    {
-        // @Speed: Inefficient
-        v2 dir = Normalise(V2(960, 540) - player->position);
-        f32 dist = Length(V2(960, 540) - player->position);
-        if ((player->hitbox_radius + dist) <= 1000) {
-            colour = CreateColour(0, 1, 0);
-        }
-        else {
-            player->position += (dist - (1000 - player->hitbox_radius)) * dir;
-        }
-    }
 
     // This can be used to offset the camera slightly as the player moves the mouse further
     // away from the centre, however, it might need some lerp as it is a bit jarring
@@ -380,16 +347,13 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfRenderWindow_setView(state->renderer, state->view);
 
     player->facing_direction = Normalise(input->unprojected_mouse - player->position);
-    f32 angle = (PI32 / 2.0) + Atan2(player->facing_direction.y, player->facing_direction.x);
-    sfConvexShape_setRotation(player->shape, Degrees(angle));
 
-    sfConvexShape_setPosition(player->shape, player->position);
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
 
 	UpdateMovingBlood(state, play, input);
 
-	if(player->health > 0)
-		sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
+    UpdateRenderPlayer(state, input, player);
+
 
 #if 0
     if (player->has_stabby_weapon) {
@@ -511,7 +475,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfCircleShape_destroy(hitbox);
 
 	for(u32 i = 0; i < play->ai_count; i++) {
-		UpdateAIPlayer(state, play, dt, i);
+		UpdateAIPlayer(state, play, input->delta_time, i);
     }
 }
 
@@ -726,6 +690,19 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
         // @Todo: Load weapon textures here
+        char *weapon_filenames[] = {
+            0,
+            "sprites/LucyShield.png",
+            "sprites/LucySword.png",
+            0
+        };
+
+        for (u32 it = 0; it < WeaponType_Count; ++it) {
+            char *filename = weapon_filenames[it];
+            if (filename) {
+                state->weapon_textures[it] = LoadTexture(&state->assets, filename);
+            }
+        }
 
         Controlled_Player *player = &play->players[0];
 
@@ -735,6 +712,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 
         Player_Stats stats = GetDefaultPlayerStats();
 
+        state->player_textures[0] = LoadTexture(&state->assets, "sprites/LucySprite.png");
         InitialisePlayer(state, player, V2(960, 540), weapons, 2, stats);
 
         v2 points[4] = {
@@ -771,7 +749,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        play->ai_count = 1;
+        play->ai_count = 0;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
             enemy->speed_modifier = 1;
