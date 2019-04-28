@@ -51,8 +51,6 @@ struct Controlled_Player {
     f32 attack_time;
     f32 attack_offset;
 
-    s32 family_hunger;
-	s32 balence;
 };
 
 struct AI_Player {
@@ -98,6 +96,9 @@ struct Play_State {
 	u32 stale_blood_count;
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
+	bool won = false;
+	Asset_Handle font;
+	Asset_Handle health_indicators[6];
 };
 struct Logo_State {
 	bool initialised = false;
@@ -122,6 +123,11 @@ struct Payment_State {
 	Asset_Handle character;
 	Asset_Handle font;
 	bool initialised = false;
+    s32 family_hunger;
+    s32 family_heat;
+	bool family_ill;
+	s32 heal_bill;
+	s32 balence;
 };
 
 enum Level_Type {

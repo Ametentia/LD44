@@ -193,7 +193,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                 if (enemy->can_attack && CircleIntersection(position, 10,
                             player->position, player->hitbox_radius))
                 {
-                    player->health--;
+                    player->health-= 20;
 					AddBlood(play, player, enemy);
                     enemy->can_attack = false;
                 }
@@ -263,14 +263,25 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
 
 
 internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_Input *input) {
-    sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
 
     Game_Controller *controller = GameGetController(input, 0);
     Assert(controller->is_connected);
 
     Controlled_Player *player = &play->players[0];
-
     f32 dt = input->delta_time;
+
+	if(play->won && JustPressed(controller->accept)) {
+		sfView_setCenter(state->view, V2(960, 540));
+    	sfRenderWindow_setView(state->renderer, state->view);
+		free(RemoveLevelState(state));
+		state->current_state->payment.balence += 100*play->ai_count - (100-player->health);
+		state->current_state->payment.heal_bill += (100-player->health);
+		state->current_state->payment.family_hunger += 1;
+		state->current_state->payment.family_heat += 1;
+		return;
+	}
+    sfRenderWindow_clear(state->renderer, CreateColour(1, 0, 0, 1));
+
     f32 player_speed = 700 * player->speed_modifier;
     if (IsPressed(controller->move_up)) {
         player->position += dt * V2(0, -player_speed);
@@ -405,8 +416,6 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
                 sfConvexShape_setPoint(shield, it, points[it]);
             }
 			sfConvexShape_setRotation(shield, Degrees(angle));
-            // @Todo: Rotation
-
             sfConvexShape_setTexture(shield,
                     GetTexture(&state->assets, player->shield_texture), false);
             sfConvexShape_setPosition(shield, position + offset);
@@ -445,7 +454,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
                     if (player->can_attack &&
                             CircleIntersection(ai->position, ai->hitbox_radius, position, 20))
                     {
-                        ai->health--;
+                        ai->health-=20;
 						AddBlood(play, ai, player);
 
                         ai->attack_type = AttackType_None;
@@ -503,12 +512,111 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfCircleShape_setOutlineThickness(hitbox, 2);
     sfCircleShape_setOutlineColor(hitbox, colour);
     sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
-
     sfCircleShape_destroy(hitbox);
 
+
+	if(player->health > 0) {
+		sfConvexShape *player_health = sfConvexShape_create();
+		u8 health_ind = (player->health < 90) ? 1 : 0;
+		if(health_ind == 1)
+			health_ind = (player->health < 50 ) ? 2 : 1;
+
+		v2 points[] = {
+			V2(-100, -100), V2(-100,  100),
+			V2( 100,  100), V2( 100, -100)
+		};
+		sfConvexShape_setPointCount(player_health, ArrayCount(points));
+		for (u32 it = 0; it < ArrayCount(points); ++it) {
+			sfConvexShape_setPoint(player_health, it, points[it]);
+		}
+		sfFloatRect bounds = sfConvexShape_getLocalBounds(player_health);
+		sfConvexShape_setOrigin(player_health, V2(bounds.left + bounds.width/2,
+								   bounds.top + bounds.height/2));
+		sfConvexShape_setTexture(player_health,
+				GetTexture(&state->assets, play->health_indicators[health_ind]), false);
+		v2 health_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+				V2i(sfRenderWindow_getSize(state->renderer).x/20*18,
+					sfRenderWindow_getSize(state->renderer).y/20*17), 
+				state->view);
+		sfConvexShape_setPosition(player_health,V2(health_loc.x, health_loc.y));
+		sfRenderWindow_drawConvexShape(state->renderer, player_health, 0);
+
+		sfText *health_text = sfText_create();
+		char health_str[3]; 
+		sprintf(health_str, "%.0f", player->health);
+		sfText_setString(health_text, health_str);
+		sfText_setCharacterSize(health_text, 65);
+		sfText_setFont(health_text, GetFont(&state->assets, play->font));
+		bounds = sfText_getLocalBounds(health_text);
+		sfText_setOrigin(health_text, V2(bounds.left + bounds.width/2,
+						           bounds.top + bounds.height/2));
+		u32 shift = health_ind > 0 ? 15 : 0;
+		if(health_ind == 2)
+			shift = 20;
+		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+				V2i(sfRenderWindow_getSize(state->renderer).x/20*18 - shift, 
+					sfRenderWindow_getSize(state->renderer).y/20*17), 
+				state->view);
+		sfText_setPosition(health_text, V2(text_loc.x, text_loc.y));
+		sfText_setFillColor(health_text, CreateColour(0.3, 0.3, 0.3, 1));
+		sfRenderWindow_drawText(state->renderer, health_text, NULL);
+		sfText_destroy(health_text);
+	}
+
+	bool won = true;
 	for(u32 i = 0; i < play->ai_count; i++) {
 		UpdateAIPlayer(state, play, dt, i);
+		if(play->enemies[i].health > 0) {
+			won = false;
+			AI_Player enemy = play->enemies[i];
+			sfConvexShape *enemy_health = sfConvexShape_create();
+			u8 health_ind = (enemy.health < 90) ? 4 : 3;
+			if(health_ind == 4)
+				health_ind = (enemy.health < 50 ) ? 5 : 4;
+
+			v2 points[] = {
+				V2(-50, -50), V2(-50,  50),
+				V2( 50,  50), V2( 50, -50)
+			};
+			sfConvexShape_setPointCount(enemy_health, ArrayCount(points));
+			for (u32 it = 0; it < ArrayCount(points); ++it) {
+				sfConvexShape_setPoint(enemy_health, it, points[it]);
+			}
+			sfFloatRect bounds = sfConvexShape_getLocalBounds(enemy_health);
+			sfConvexShape_setOrigin(enemy_health, V2(bounds.left + bounds.width/2,
+									   bounds.top + bounds.height/2));
+			sfConvexShape_setTexture(enemy_health,
+					GetTexture(&state->assets, play->health_indicators[health_ind]), false);
+			v2 health_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+					V2i(sfRenderWindow_getSize(state->renderer).x/20, 
+						sfRenderWindow_getSize(state->renderer).y/10*9), 
+					state->view);
+			sfConvexShape_setPosition(enemy_health,V2(health_loc.x, health_loc.y - 100*i));
+			sfRenderWindow_drawConvexShape(state->renderer, enemy_health, 0);
+		}
     }
+	if(won == true) {
+		play->won = true;
+		sfRenderWindow_mapPixelToCoords(state->renderer,
+            V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
+
+
+		sfText *win_text = sfText_create();
+		sfText_setString(win_text, "You Have Survived.");
+		sfText_setCharacterSize(win_text, 120);
+		sfText_setFont(win_text, GetFont(&state->assets, play->font));
+		sfFloatRect bounds = sfText_getLocalBounds(win_text);
+		sfText_setOrigin(win_text, V2(bounds.left + bounds.width/2,
+						           bounds.top + bounds.height/2));
+		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+				V2i(sfRenderWindow_getSize(state->renderer).x/2, 
+					sfRenderWindow_getSize(state->renderer).y/10), 
+				state->view);
+		sfText_setPosition(win_text, V2(text_loc.x, text_loc.y));
+		sfText_setFillColor(win_text, CreateColour(1, 1, 1, 1));
+		sfRenderWindow_drawText(state->renderer, win_text, NULL);
+		sfText_destroy(win_text);
+	}
 }
 
 internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment, Game_Input *input) {
@@ -540,11 +648,31 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfRectangleShape_destroy(background_options);
 
 	sfText *stats = sfText_create();
-	sfText_setString(stats, "Family Food Supply: Good\n"
-						   "Money: None\n"
-						   "Another Stat: Real Bad\n"
-						   "Another Stat: Disaster\n"
-						   "Reasons to continue: 0");
+	char stats_string[128];
+	char hunger_strings[4][64] = {
+		"Well fed", "Some food", "Hungry", "Famished"
+	};
+	char heat_strings[6][64] = {
+		"Lots of firewood","Some firewood", "Low supply of firewood",
+		"No firewood", "Going cold", "Freezing"
+	};
+	char health_strings[3][64] = {
+		"Healthy","Ill", "Require medicine"
+	};
+	sprintf(stats_string,
+				"Money: %d Gold\n"
+				"You Paid %d Gold to recover from your wounds\n"
+				"Family Food Supply: %s\n"
+				"Heat: %s\n"
+				"Family Health: %s\n",
+				payment->balence,
+				payment->heal_bill,
+				hunger_strings[payment->family_hunger > -1 ? payment->family_hunger: 0],
+				heat_strings[payment->family_heat],
+				health_strings[payment->family_ill ? 2 : 0]
+				);
+
+	sfText_setString(stats, stats_string);
 	sfText_setCharacterSize(stats, 40);
 	sfText_setFont(stats, GetFont(&state->assets, payment->font));
 	sfText_setPosition(stats, V2(810, 110));
@@ -706,6 +834,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
     if (!state->initialised) {
         InitialiseAssetManager(&state->assets, 100); // @Note: Can be increased if need be
 
+        Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
         Level_State *level = CreateLevelState(state, LevelType_Play);
         Play_State *play = &level->play;
 		
@@ -718,8 +847,10 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
+		play->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
+
         Controlled_Player *player = &play->players[0];
-        player->health = 5;
+        player->health = 100;
         player->speed_modifier = 1;
         player->hitbox_radius = 30;
         player->has_stabby_weapon = true;
@@ -749,11 +880,17 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         for (u32 it = 0; it < ArrayCount(blood_points); ++it) {
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
+		play->health_indicators[0] = LoadTexture(&state->assets, "sprites/PlayerHealthFull.png");
+		play->health_indicators[1] = LoadTexture(&state->assets, "sprites/PlayerHealthMedium.png");
+		play->health_indicators[2] = LoadTexture(&state->assets, "sprites/PlayerHealthLow.png");
+		play->health_indicators[3] = LoadTexture(&state->assets, "sprites/EnemyHealthFull.png");
+		play->health_indicators[4] = LoadTexture(&state->assets, "sprites/EnemyHealthMedium.png");
+		play->health_indicators[5] = LoadTexture(&state->assets, "sprites/EnemyHealthLow.png");
 
-        play->ai_count = 1;
+        play->ai_count = 2;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
-            enemy->speed_modifier = 1;
+            enemy->speed_modifier = 0.6f;
             enemy->hitbox_radius = 25;
             enemy->position.x = random(-340, 1300);
             enemy->position.y = random(-340, 1300);
@@ -761,10 +898,11 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             enemy->has_shield = true;
             enemy-> attacking = false;
             enemy->attack_wait_time = 0;
-            enemy->health = 5;
+            enemy->health = 100;
             enemy->shape = sfConvexShape_create();
             sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
-            sfConvexShape_setFillColor(enemy->shape, sfGreen);
+            sfConvexShape_setFillColor(enemy->shape, CreateColour(0.4, 0.4, 0.4, 1));
+			sfConvexShape_setTexture(enemy->shape, GetTexture(&state->assets, player->texture), false);
             for (u32 it = 0; it < ArrayCount(points); ++it) {
                 sfConvexShape_setPoint(enemy->shape, it, points[it]);
             }
