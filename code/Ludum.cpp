@@ -96,7 +96,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 				direction += Normalise(play->enemies[i].position -enemy->position);
 			}
 		}
-		enemy->position -= direction * enemy->speed_modifier * 700 * dt;
+		enemy->position -= direction * enemy->speed_modifier * 500 * dt;
 	}
 	else if(enemy->attack_wait_time < 0){
 		enemy->attacking = true;
@@ -158,6 +158,19 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                             player->position, player->hitbox_radius))
                 {
                     player->health--;
+					for(int i = random(30, 50); i > 0; i--){
+						Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+						new_blood->active = true;
+						new_blood->position = player->position;
+						new_blood->dir = Normalise(player->position - enemy->position);
+						new_blood->dir += V2((f32)random(-10, 10)/10, (f32)random(-10, 10)/10);
+						new_blood->lifetime = 1;
+						new_blood->speed = random(3, 5);
+						play->moving_blood_count++;
+						if(play->moving_blood_count > 74) {
+							play->moving_blood_count = 0;
+						}
+					}
                     enemy->can_attack = false;
                 }
             }
@@ -198,6 +211,31 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
     sfConvexShape_setPosition(enemy->shape, enemy->position);
     sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
 }
+
+internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input *input) {
+    Controlled_Player *player = &play->players[0];
+	for(int i = 0; i < play->moving_blood_count; i++) {
+		Moving_Blood *blood = &play->active_blood[i];
+		if(blood->active) {
+			blood->position += blood->dir * blood->speed;
+			blood->lifetime -= input->delta_time;
+			sfConvexShape_setPosition(play->blood_shape, blood->position);
+			sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
+			if(blood->lifetime < 0) {
+				play->stale_blood[play->stale_blood_count] = blood->position;
+				play->stale_blood_count++;
+				if(play->stale_blood_count> 499)
+					play->stale_blood_count = 0;
+				blood->active = false;
+			}
+		}
+	}
+	for(int i = 0; i < 500; i++) {
+		sfConvexShape_setPosition(play->blood_shape, play->stale_blood[i]);
+		sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
+	}
+}
+
 
 internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
@@ -320,6 +358,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfConvexShape_setPosition(player->shape, player->position);
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
 
+	UpdateMovingBlood(state, play, input);
+
     sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
     if (player->has_stabby_weapon) {
@@ -422,7 +462,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 }
 
 internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment, Game_Input *input) {
-    sfRenderWindow_clear(state->renderer, CreateColour(0, 1, 1, 1));
+    sfRenderWindow_clear(state->renderer, CreateColour(1, 1, 1, 1));
 	if(!payment->initialised) {
 		payment->character = LoadTexture(&state->assets, "sprites/Lucy.png");
 		payment->initialised = true;
@@ -439,8 +479,13 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 
 	sfRectangleShape *background_options = sfRectangleShape_create();
 	sfRectangleShape_setPosition(background_options, V2(800, 50));
-	sfRectangleShape_setFillColor(background_options, CreateColour(1,0,1,1));
+	sfRectangleShape_setFillColor(background_options, CreateColour(0.3,0.3,0.3,1));
 	sfRectangleShape_setSize(background_options, V2(1080, 990));
+	sfRenderWindow_drawRectangleShape(state->renderer, background_options, NULL);
+
+	sfRectangleShape_setFillColor(background_options, CreateColour(0.1,0.1,0.1,1));
+	sfRectangleShape_setPosition(background_options, V2(805, 55));
+	sfRectangleShape_setSize(background_options, V2(1070, 57));
 	sfRenderWindow_drawRectangleShape(state->renderer, background_options, NULL);
 	sfRectangleShape_destroy(background_options);
 
@@ -452,7 +497,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 						   "Reasons to continue: 0");
 	sfText_setCharacterSize(stats, 40);
 	sfText_setFont(stats, GetFont(&state->assets, payment->font));
-	sfText_setPosition(stats, V2(810, 60));
+	sfText_setPosition(stats, V2(810, 110));
 	sfText_setFillColor(stats, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, stats, NULL);
 	sfText_destroy(stats);
@@ -466,6 +511,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfRenderWindow_drawText(state->renderer, heading, NULL);
 	sfText_setString(heading, "Equipment");
 	sfText_setPosition(heading, V2(810, 500));
+	sfRenderWindow_drawText(state->renderer, heading, NULL);
+	sfText_setString(heading, "Stats");
+	sfText_setPosition(heading, V2(810, 42));
 	sfRenderWindow_drawText(state->renderer, heading, NULL);
 	sfText_destroy(heading);
 
@@ -582,14 +630,12 @@ internal void UpdateRenderDialogState(Game_State *state, Dialog_State *dialog, G
 	sfRenderWindow_drawRectangleShape(state->renderer, character, NULL);
 	sfRectangleShape_destroy(character);
 
-
 	sfRectangleShape *background = sfRectangleShape_create();
 	sfRectangleShape_setPosition(background, V2(10, 940));
 	sfRectangleShape_setFillColor(background, CreateColour(1,0,1,1));
 	sfRectangleShape_setSize(background, V2(1900, 110));
 	sfRenderWindow_drawRectangleShape(state->renderer, background, NULL);
 	sfRectangleShape_destroy(background);
-
 
 	sfText *Text = sfText_create();
 	sfText_setString(Text, dialog->dialog[dialog->current_line]);
@@ -633,13 +679,24 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         player->shape = sfConvexShape_create();
         sfConvexShape_setPointCount(player->shape, ArrayCount(points));
         //sfConvexShape_setFillColor(player->shape, sfRed);
-		player->texture = LoadTexture(&state->assets, "sprites/fighter1.png");
+		player->texture = LoadTexture(&state->assets, "sprites/LucySprite.png");
 		sfConvexShape_setTexture(player->shape, GetTexture(&state->assets, player->texture), false);
         for (u32 it = 0; it < ArrayCount(points); ++it) {
             sfConvexShape_setPoint(player->shape, it, points[it]);
         }
 
-        play->ai_count = 5;
+        play->blood_shape = sfConvexShape_create();
+		v2 blood_points[4] = {
+			V2(-10,-10), V2(-10, 10),
+			V2(10, 10), V2(10, -10)
+		};
+        sfConvexShape_setPointCount(play->blood_shape, ArrayCount(blood_points));
+        sfConvexShape_setFillColor(play->blood_shape, sfRed);
+        for (u32 it = 0; it < ArrayCount(blood_points); ++it) {
+            sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
+        }
+
+        play->ai_count = 9;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
             enemy->speed_modifier = 1;
@@ -652,7 +709,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             enemy->health = 5;
             enemy->shape = sfConvexShape_create();
             sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
-            sfConvexShape_setFillColor(enemy->shape, sfRed);
+            sfConvexShape_setFillColor(enemy->shape, sfGreen);
             for (u32 it = 0; it < ArrayCount(points); ++it) {
                 sfConvexShape_setPoint(enemy->shape, it, points[it]);
             }
