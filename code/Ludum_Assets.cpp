@@ -105,3 +105,63 @@ internal sfMusic *GetMusic(Asset_Manager *manager, Asset_Handle handle) {
     return result;
 }
 
+internal Animation CreateAnimation(Asset_Manager *assets, Asset_Handle texture_handle,
+        u32 rows, u32 columns, f32 time_per_frame)
+{
+    Animation result = {};
+
+    result.handle = texture_handle;
+
+    sfTexture *texture = GetTexture(assets, texture_handle);
+    sfVector2u size = sfTexture_getSize(texture);
+
+    result.width  = size.x / columns;
+    result.height = size.y / rows;
+
+    result.rows = rows;
+    result.columns = columns;
+    result.total_frames = rows * columns;
+    result.current_frame = 0;
+    result.accumulator = 0;
+
+    result.time_per_frame = time_per_frame;
+
+    return result;
+}
+
+internal void UpdateAnimation(Animation *animation, f32 dt) {
+    animation->accumulator += dt;
+    if (animation->accumulator >= animation->time_per_frame) {
+        animation->accumulator = 0;
+        u32 current_frame = animation->current_frame;
+        animation->current_frame = (current_frame + 1) % animation->total_frames;
+    }
+}
+
+internal void RenderAnimation(Game_State *state,
+        Animation *animation, v2 position, v2 scale = V2(1, 1))
+{
+    u32 current_frame = animation->current_frame;
+
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setOrigin(sprite, V2(animation->width / 2, animation->height / 2));
+    sfSprite_setPosition(sprite, position);
+    sfSprite_setScale(sprite, scale);
+
+    sfTexture *texture = GetTexture(&state->assets, animation->handle);
+    sfSprite_setTexture(sprite, texture, true);
+
+    u32 row = cast(u32) ((cast(f32) current_frame) / (cast(f32) animation->columns));
+    u32 col = current_frame % animation->columns;
+
+    sfIntRect texture_rect = {
+         cast(s32) (col * animation->width), cast(s32) (row * animation->height),
+         cast(s32) animation->width,         cast(s32) animation->height
+    };
+    sfSprite_setTextureRect(sprite, texture_rect);
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
+    sfSprite_destroy(sprite);
+}
+

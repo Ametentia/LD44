@@ -25,7 +25,7 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
 
     if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
         Level_State *level = RemoveLevelState(state);
-	        Free(level);
+	    Free(level);
     }
 }
 
@@ -80,6 +80,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                 enemy->attack_time = 0.4;
             }
         }
+
 		if(Length(enemy->position - enemy->attack_start) > 200) {
             enemy->attack_type = AttackType_None;
 			enemy->attacking = false;
@@ -282,6 +283,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         }
     }
 
+    {
         player->attack_time -= dt;
         switch (player->attack_type) {
             case AttackType_Stab: {
@@ -325,7 +327,6 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		}
 	}
 
-
     v4i colour = CreateColour(1, 0, 0);
 
     // This can be used to offset the camera slightly as the player moves the mouse further
@@ -348,13 +349,22 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
     player->facing_direction = Normalise(input->unprojected_mouse - player->position);
 
+    Animation *animation = &state->background_animation;
+    UpdateAnimation(animation, input->delta_time);
+    v2 scale = V2(4, 4);
+    for (f32 x = -1920; x < (2 * 1920); x += (scale.x * animation->width)) {
+        for (f32 y = -1080; y < (2 * 1080); y += (scale.y * animation->height)) {
+            RenderAnimation(state, animation, V2(x, y), scale);
+        }
+    }
+
+
+
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
 
 	UpdateMovingBlood(state, play, input);
 
     UpdateRenderPlayer(state, input, player);
-
-
 #if 0
     if (player->has_stabby_weapon) {
         v2 position = (player->position + 30 * player->facing_direction);
@@ -582,6 +592,107 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfRenderWindow_drawText(state->renderer, equipment_desc, NULL);
 	sfText_destroy(equipment_desc);
 
+    if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
+        Level_State *level = CreateLevelState(state, LevelType_Play);
+
+
+        // @Todo: This should probably move to the UpdateRenderPlayState
+        Play_State *play = &level->play;
+
+        play->arena = sfCircleShape_create();
+        sfCircleShape_setRadius(play->arena, 1000);
+        sfCircleShape_setOrigin(play->arena, V2(1000, 1000));
+		Asset_Handle t = LoadTexture(&state->assets, "sprites/Floor.png");
+		sfCircleShape_setTexture(play->arena, GetTexture(&state->assets, t), false);
+        sfCircleShape_setPointCount(play->arena, 45);
+        sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
+        sfCircleShape_setPosition(play->arena, V2(960, 540));
+
+        // @Todo: Load weapon textures here
+        char *weapon_filenames[] = {
+            0,
+            "sprites/LucyShield.png",
+            "sprites/LucySword.png",
+            0
+        };
+
+        for (u32 it = 0; it < WeaponType_Count; ++it) {
+            char *filename = weapon_filenames[it];
+            if (filename) {
+                state->weapon_textures[it] = LoadTexture(&state->assets, filename);
+            }
+        }
+
+        Asset_Handle ocean_handle = LoadTexture(&state->assets, "sprites/OceanSpriteSheet.png");
+        state->background_animation =
+            CreateAnimation(&state->assets, ocean_handle, 2, 8, 0.1);
+
+        Controlled_Player *player = &play->players[0];
+
+        Weapon weapons[2] = {};
+        weapons[0] = PrefabWeapon(state, WeaponType_Sword);
+        weapons[1] = PrefabWeapon(state, WeaponType_Shield);
+
+        Player_Stats stats = GetDefaultPlayerStats();
+
+        state->player_textures[0] = LoadTexture(&state->assets, "sprites/LucySprite.png");
+        InitialisePlayer(state, player, V2(960, 540), weapons, 2, stats);
+
+        v2 points[4] = {
+            V2(-80, -40), V2(-80,  40),
+            V2( 80,  40), V2( 80, -40)
+        };
+#if 0
+        player->health = 5;
+        player->speed_modifier = 1;
+        player->hitbox_radius = 30;
+        player->has_stabby_weapon = true;
+		player->position = V2(960, 540);
+        player->has_shield = true;
+
+        player->shape = sfConvexShape_create();
+        sfConvexShape_setPointCount(player->shape, ArrayCount(points));
+        //sfConvexShape_setFillColor(player->shape, sfRed);
+		player->texture = LoadTexture(&state->assets, "sprites/LucySprite.png");
+        player->shield_texture = LoadTexture(&state->assets, "sprites/LucyShield.png");
+		sfConvexShape_setTexture(player->shape, GetTexture(&state->assets, player->texture), false);
+        for (u32 it = 0; it < ArrayCount(points); ++it) {
+            sfConvexShape_setPoint(player->shape, it, points[it]);
+        }
+#endif
+
+        play->blood_shape = sfConvexShape_create();
+		v2 blood_points[4] = {
+			V2(-10,-10), V2(-10, 10),
+			V2(10, 10), V2(10, -10)
+		};
+        sfConvexShape_setPointCount(play->blood_shape, ArrayCount(blood_points));
+        sfConvexShape_setFillColor(play->blood_shape, sfRed);
+        for (u32 it = 0; it < ArrayCount(blood_points); ++it) {
+            sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
+        }
+
+        play->ai_count = 0;
+        for (u32 it = 0; it < play->ai_count; ++it) {
+        	AI_Player *enemy = &play->enemies[it];
+            enemy->speed_modifier = 1;
+            enemy->hitbox_radius = 25;
+            enemy->position.x = random(-340, 1300);
+            enemy->position.y = random(-340, 1300);
+            enemy->has_stabby_weapon = true;
+            enemy->has_shield = true;
+            enemy-> attacking = false;
+            enemy->attack_wait_time = 0;
+            enemy->health = 5;
+            enemy->shape = sfConvexShape_create();
+            sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
+            sfConvexShape_setFillColor(enemy->shape, sfGreen);
+            for (u32 it = 0; it < ArrayCount(points); ++it) {
+                sfConvexShape_setPoint(enemy->shape, it, points[it]);
+            }
+        }
+
+    }
 }
 
 internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_Input *input) {
@@ -674,100 +785,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
     if (!state->initialised) {
         InitialiseAssetManager(&state->assets, 100); // @Note: Can be increased if need be
 
-        Level_State *level = CreateLevelState(state, LevelType_Play);
-
-
-        // @Todo: This should probably move to the UpdateRenderPlayState
-        Play_State *play = &level->play;
-
-        play->arena = sfCircleShape_create();
-        sfCircleShape_setRadius(play->arena, 1000);
-        sfCircleShape_setOrigin(play->arena, V2(1000, 1000));
-		Asset_Handle t = LoadTexture(&state->assets, "sprites/Floor.png");
-		sfCircleShape_setTexture(play->arena, GetTexture(&state->assets, t), false);
-        sfCircleShape_setPointCount(play->arena, 45);
-        sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
-        sfCircleShape_setPosition(play->arena, V2(960, 540));
-
-        // @Todo: Load weapon textures here
-        char *weapon_filenames[] = {
-            0,
-            "sprites/LucyShield.png",
-            "sprites/LucySword.png",
-            0
-        };
-
-        for (u32 it = 0; it < WeaponType_Count; ++it) {
-            char *filename = weapon_filenames[it];
-            if (filename) {
-                state->weapon_textures[it] = LoadTexture(&state->assets, filename);
-            }
-        }
-
-        Controlled_Player *player = &play->players[0];
-
-        Weapon weapons[2] = {};
-        weapons[0] = PrefabWeapon(state, WeaponType_Sword);
-        weapons[1] = PrefabWeapon(state, WeaponType_Shield);
-
-        Player_Stats stats = GetDefaultPlayerStats();
-
-        state->player_textures[0] = LoadTexture(&state->assets, "sprites/LucySprite.png");
-        InitialisePlayer(state, player, V2(960, 540), weapons, 2, stats);
-
-        v2 points[4] = {
-            V2(-80, -40), V2(-80,  40),
-            V2( 80,  40), V2( 80, -40)
-        };
-#if 0
-        player->health = 5;
-        player->speed_modifier = 1;
-        player->hitbox_radius = 30;
-        player->has_stabby_weapon = true;
-		player->position = V2(960, 540);
-        player->has_shield = true;
-
-        player->shape = sfConvexShape_create();
-        sfConvexShape_setPointCount(player->shape, ArrayCount(points));
-        //sfConvexShape_setFillColor(player->shape, sfRed);
-		player->texture = LoadTexture(&state->assets, "sprites/LucySprite.png");
-        player->shield_texture = LoadTexture(&state->assets, "sprites/LucyShield.png");
-		sfConvexShape_setTexture(player->shape, GetTexture(&state->assets, player->texture), false);
-        for (u32 it = 0; it < ArrayCount(points); ++it) {
-            sfConvexShape_setPoint(player->shape, it, points[it]);
-        }
-#endif
-
-        play->blood_shape = sfConvexShape_create();
-		v2 blood_points[4] = {
-			V2(-10,-10), V2(-10, 10),
-			V2(10, 10), V2(10, -10)
-		};
-        sfConvexShape_setPointCount(play->blood_shape, ArrayCount(blood_points));
-        sfConvexShape_setFillColor(play->blood_shape, sfRed);
-        for (u32 it = 0; it < ArrayCount(blood_points); ++it) {
-            sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
-        }
-
-        play->ai_count = 0;
-        for (u32 it = 0; it < play->ai_count; ++it) {
-        	AI_Player *enemy = &play->enemies[it];
-            enemy->speed_modifier = 1;
-            enemy->hitbox_radius = 25;
-            enemy->position.x = random(-340, 1300);
-            enemy->position.y = random(-340, 1300);
-            enemy->has_stabby_weapon = true;
-            enemy->has_shield = true;
-            enemy-> attacking = false;
-            enemy->attack_wait_time = 0;
-            enemy->health = 5;
-            enemy->shape = sfConvexShape_create();
-            sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
-            sfConvexShape_setFillColor(enemy->shape, sfGreen);
-            for (u32 it = 0; it < ArrayCount(points); ++it) {
-                sfConvexShape_setPoint(enemy->shape, it, points[it]);
-            }
-        }
+        Level_State *payement = CreateLevelState(state, LevelType_Payment);
         state->initialised = true;
     }
 

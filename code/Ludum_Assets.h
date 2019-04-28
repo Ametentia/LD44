@@ -13,6 +13,22 @@ struct Asset_Handle {
     u32 value;
 };
 
+struct Animation {
+    Asset_Handle handle;
+
+    f32 time_per_frame;
+    f32 accumulator;
+
+    u32 width;
+    u32 height;
+
+    s32 rows;
+    s32 columns;
+
+    u32 current_frame;
+    u32 total_frames;
+};
+
 struct Asset {
     bool loaded;
     Asset_Type type;
@@ -39,5 +55,8 @@ internal sfTexture *GetTexture(Asset_Manager *manager, Asset_Handle handle);
 internal sfFont    *GetFont(Asset_Manager *manager, Asset_Handle handle);
 internal sfMusic   *GetMusic(Asset_Manager *manager, Asset_Handle handle);
 internal sfSoundBuffer *GetSound(Asset_Manager *manager, Asset_Handle handle);
+
+internal Animation CreateAnimation(Asset_Manager *assets, Asset_Handle texture,
+        u32 rows, u32 columns, f32 time_per_frame);
 
 #endif  // LUDUM_ASSETS_H_

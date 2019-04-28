@@ -32,6 +32,7 @@ struct Play_State {
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
 };
+
 struct Logo_State {
 	bool initialised = false;
 	f32 delta_rate;
@@ -89,6 +90,8 @@ struct Game_State {
     Asset_Handle player_textures[3];
 
     Level_State *current_state;
+
+    Animation background_animation;
 };
 
 #endif  // LUDUM_H_
