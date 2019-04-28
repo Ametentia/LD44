@@ -5,9 +5,6 @@ struct Player_Stats {
     f32 health; // This is the current health and _not_ max health
     f32 strength;
     f32 speed;
-
-    s32 family_hunger;
-    s32 balance;
 };
 
 enum Attack_Type {

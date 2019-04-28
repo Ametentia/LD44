@@ -50,9 +50,6 @@ internal Player_Stats GetDefaultPlayerStats() {
     result.speed = 1;
     result.strength = 1;
 
-    result.family_hunger = 2;
-    result.balance = 10;
-
     return result;
 }
 
@@ -65,7 +62,7 @@ internal v2 UpdateAttackingWeapon(Weapon *weapon,
         switch (weapon->attacking_type) {
             case AttackType_Slash: {
                 weapon->attacking_type = AttackType_ReturningSlash;
-                weapon->attacking_time = 0.2;
+                weapon->attacking_time = 0.1;
                 weapon->attack_offset = 0;
             }
             break;
@@ -159,9 +156,6 @@ internal void InitialisePlayer(Game_State *state, Controlled_Player *player, v2 
     player->health = stats.health;
     player->strength_modifier = stats.strength;
     player->speed_modifier = stats.speed;
-
-    player->family_hunger = stats.family_hunger;
-    player->balance = stats.balance;
 }
 
 internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlled_Player *player) {
@@ -170,7 +164,7 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
     Assert(controller->is_connected);
 
     /// Check input for movement
-    f32 player_speed = 700 * player->speed_modifier;
+    f32 player_speed = 900 * player->speed_modifier;
     v2 move_direction = V2(0, 0);
     if (IsPressed(controller->move_up)) {
         move_direction.y = -1;
