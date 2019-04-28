@@ -29,6 +29,38 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
 
 }
 
+internal void AddBlood(Play_State *play, Controlled_Player *player, AI_Player *enemy) {
+	for(int i = random(30, 37); i > 0; i--){
+		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+		new_blood->active = true;
+		new_blood->position = player->position;
+		new_blood->dir = Normalise(player->position - enemy->position);
+		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
+		new_blood->lifetime = 0.2f;
+		new_blood->speed = random(10, 15);
+		play->moving_blood_count++;
+		if(play->moving_blood_count > 74) {
+			play->moving_blood_count = 0;
+		}
+	}
+}
+
+internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *player) {
+	for(int i = random(30, 37); i > 0; i--){
+		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+		new_blood->active = true;
+		new_blood->position = enemy->position;
+		new_blood->dir = -Normalise(player->position - enemy->position);
+		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
+		new_blood->lifetime = 0.2f;
+		new_blood->speed = random(10, 15);
+		play->moving_blood_count++;
+		if(play->moving_blood_count > 74) {
+			play->moving_blood_count = 0;
+		}
+	}
+}
+
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
     AI_Player *enemy = &play->enemies[aiNum];
     if (enemy->health <= 0) { return; }
@@ -87,6 +119,9 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 				}
 			}
 			enemy->position += enemy->rotate_dir * direction * enemy->speed_modifier * 300 * dt;
+		}
+		else if(enemy->attack_wait_time < 3) {
+			enemy->circling = random(0,40) > 35;
 		}
 	}
 	else if(enemy->attack_wait_time > 0 && distance < 190) {
@@ -158,19 +193,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                             player->position, player->hitbox_radius))
                 {
                     player->health--;
-					for(int i = random(30, 50); i > 0; i--){
-						Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
-						new_blood->active = true;
-						new_blood->position = player->position;
-						new_blood->dir = Normalise(player->position - enemy->position);
-						new_blood->dir += V2((f32)random(-10, 10)/10, (f32)random(-10, 10)/10);
-						new_blood->lifetime = 1;
-						new_blood->speed = random(3, 5);
-						play->moving_blood_count++;
-						if(play->moving_blood_count > 74) {
-							play->moving_blood_count = 0;
-						}
-					}
+					AddBlood(play, player, enemy);
                     enemy->can_attack = false;
                 }
             }
@@ -360,7 +383,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
 	UpdateMovingBlood(state, play, input);
 
-    sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
+	if(player->health > 0)
+		sfRenderWindow_drawConvexShape(state->renderer, player->shape, 0);
 
     if (player->has_stabby_weapon) {
         v2 position = (player->position + 35 * player->facing_direction);
@@ -397,6 +421,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
                             CircleIntersection(ai->position, ai->hitbox_radius, position, 10))
                     {
                         ai->health--;
+						AddBlood(play, ai, player);
                         s32 r = random(0, 10);
                         ai->attack_type = AttackType_None;
                         ai->attack_time = 0;
@@ -667,10 +692,11 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
         Controlled_Player *player = &play->players[0];
-        player->health = 100;
+        player->health = 5;
         player->speed_modifier = 1;
         player->hitbox_radius = 30;
         player->has_stabby_weapon = true;
+		player->position = V2(960, 540);
         player->has_shield = true;
         v2 points[4] = {
             V2(-80, -40), V2(-80,  40),
@@ -696,12 +722,13 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        play->ai_count = 9;
+        play->ai_count = 2;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
             enemy->speed_modifier = 1;
             enemy->hitbox_radius = 25;
             enemy->position.x = random(-340, 1300);
+            enemy->position.y = random(-340, 1300);
             enemy->has_stabby_weapon = true;
             enemy->has_shield = true;
             enemy-> attacking = false;
