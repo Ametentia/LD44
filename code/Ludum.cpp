@@ -23,12 +23,20 @@ internal Level_State *RemoveLevelState(Game_State *state) {
 internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(1, 0, 0, 1));
 
+    Game_Controller *controller = GameGetController(input, 0);
+
     Animation *animation = &state->background_animation;
     UpdateAnimation(animation, input->delta_time);
     v2 scale = V2(4, 4);
     for (f32 x = -1920; x < (2 * 1920); x += (scale.x * animation->width)) {
         for (f32 y = -1080; y < (2 * 1080); y += (scale.y * animation->height)) {
             RenderAnimation(state, animation, V2(x, y), scale);
+        }
+    }
+
+    for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
+        if (JustPressed(controller->buttons[it])) {
+            CreateLevelState(state, LevelType_Payment);
         }
     }
 
@@ -40,6 +48,14 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
     sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
     sfSprite_setPosition(sprite, V2(960, 540));
     sfSprite_setScale(sprite, scale);
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->title), true);
+
+    bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setPosition(sprite, V2(960, 250));
+    sfSprite_setScale(sprite, V2(1, 1));
 
     sfRenderWindow_drawSprite(state->renderer, sprite, 0);
     sfSprite_destroy(sprite);
@@ -564,16 +580,23 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 	if(play->won && JustPressed(controller->accept)) {
 		sfView_setCenter(state->view, V2(960, 540));
     	sfRenderWindow_setView(state->renderer, state->view);
-		int pay = (100*state->ai_count) - (100-player->health) 
+		int pay = (100*state->ai_count) - (100-player->health)
             +(state->ai_speed < 1 ? 0 : 20*state->ai_count);
 		int heal = (100-player->health);
 		sfMusic_stop(GetMusic(&state->assets, state->cheer));
 		sfMusic_stop(GetMusic(&state->assets, state->fight_music[state->music_num]));
 		Level_State *level = RemoveLevelState(state);
 		Free(level);
+
+        state->totals.days_survived++;
+        state->totals.enemies_killed += state->ai_count;
+
 		Level_State *current_state = state->current_state;
         Payment_State *payment = &current_state->payment;
 		payment->heal_bill = heal;
+        u32 overall_pay = pay + (heal == 0 ? 40 * state->ai_count : 0);
+        state->totals.money_made += overall_pay;
+
 		payment->balence += pay + (heal == 0 ? 40 * state->ai_count : 0);
 		payment->family_hunger++;
         state->battle_count++;
@@ -590,7 +613,17 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			Game_Over_State *gameover = &gameover_state_push->game_over;
 			gameover->game_over_message = "Your Whole Family Has Died.\n";
 			gameover->game_over_tag_line = "Well Done.\n";
-			gameover->game_over_stats = "TODO\nTODO\nTODO\n";
+
+            char buf[1024];
+            umm length = snprintf(buf, sizeof(buf),
+                    "Days survived: %u\nMoney made: %u\nEnemies killed: %u",
+                    state->totals.days_survived,
+                    state->totals.money_made,
+                    state->totals.enemies_killed);
+
+			gameover->game_over_stats = cast(char *) Alloc(length + 1);
+            memcpy(gameover->game_over_stats, buf, length);
+            gameover->game_over_stats[length] = 0;
 
 		    return;
 		}
@@ -755,7 +788,16 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfRenderWindow_drawText(state->renderer, lose_text, NULL);
 		sfText_destroy(lose_text);
 
+
+
+
 		if (JustPressed(controller->accept)) {
+            for (u32 it = 0; it < play->ai_count; ++it) {
+                if (play->enemies[it].health <= 0) {
+                    state->totals.enemies_killed++;
+                }
+            }
+
 			sfMusic_stop(GetMusic(&state->assets, state->cheer));
 			Level_State *play = RemoveLevelState(state);
 			Free(play);
@@ -765,8 +807,19 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			Level_State *current_state = state->current_state;
 			Game_Over_State *gameover = &current_state->game_over;
 			gameover->game_over_message = "You Died In Battle.";
-			gameover->game_over_tag_line = "Your family wishes you spent more time with them";
-			gameover->game_over_stats = "TODO\nTODO\nTODO\nTODO";
+			gameover->game_over_tag_line = "Your family wishes you spent\n         more time with them";
+
+            char buf[1024];
+            umm length = snprintf(buf, sizeof(buf),
+                    "Days survived: %u\nMoney made: %u\nEnemies killed: %u",
+                    state->totals.days_survived,
+                    state->totals.money_made,
+                    state->totals.enemies_killed);
+
+			gameover->game_over_stats = cast(char *) Alloc(length + 1);
+            memcpy(gameover->game_over_stats, buf, length);
+            gameover->game_over_stats[length] = 0;
+
 			return;
 		}
 	}
@@ -804,6 +857,23 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
             sfConvexShape_destroy(enemy_health);
 		}
+        else {
+            sfSprite *sprite = sfSprite_create();
+            sfSprite_setTexture(sprite,
+                    GetTexture(&state->assets, state->health_indicators[6]), true);
+
+            sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+            sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+            sfSprite_setScale(sprite, V2(1.9, 1.9));
+			v2 health_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+					V2i(sfRenderWindow_getSize(state->renderer).x / 20,
+						sfRenderWindow_getSize(state->renderer).y / 10 * 9),
+					state->view);
+			sfSprite_setPosition(sprite, V2(health_loc.x, health_loc.y - 100*i));
+            sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
+            sfSprite_destroy(sprite);
+        }
     }
 
 	if(won == true) {
@@ -1009,9 +1079,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
             sfFloatRect bounds = sfRectangleShape_getLocalBounds(items);
             input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
                 V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
-            bool x_correct = input->unprojected_mouse.x > 1590 && 
+            bool x_correct = input->unprojected_mouse.x > 1590 &&
                 input->unprojected_mouse.x <  + 1590 + bounds.left + bounds.width;
-            bool y_correct = input->unprojected_mouse.y > 120 + i*170  && 
+            bool y_correct = input->unprojected_mouse.y > 120 + i*170  &&
                 input->unprojected_mouse.y < 120+ i*170 + bounds.top + bounds.height;
             if(x_correct && y_correct) {
                 switch(i) {
@@ -1062,7 +1132,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
         }
     }
 	sfRectangleShape_destroy(items);
-    
+
 
     sfSprite *player_food = sfSprite_create();
     sfSprite_setTexture(player_food,
@@ -1083,7 +1153,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
     sfRenderWindow_drawSprite(state->renderer, player_food, 0);
 
     sfSprite_setTexture(player_food,
-            GetTexture(&state->assets, state->ill_indicators[payment->family_ill ? 2 : 0]), true);
+            GetTexture(&state->assets, state->ill_indicators[payment->family_ill ? 1 : 0]), true);
     sfSprite_setPosition(player_food, V2(990, 655));
     sfRenderWindow_drawSprite(state->renderer, player_food, 0);
     sfSprite_destroy(player_food);
@@ -1167,13 +1237,40 @@ internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_In
 
 internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *gameover, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 0, 1));
+
+    sfView_setCenter(state->view, V2(960, 540));
+    sfRenderWindow_setView(state->renderer, state->view);
+
+    Animation *animation = &state->background_animation;
+    UpdateAnimation(animation, input->delta_time);
+    v2 scale = V2(4, 4);
+    for (f32 x = -1920; x < (2 * 1920); x += (scale.x * animation->width)) {
+        for (f32 y = -1080; y < (2 * 1080); y += (scale.y * animation->height)) {
+            RenderAnimation(state, animation, V2(x, y), scale);
+        }
+    }
+
+    scale += V2(2, 2);
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->arena), true);
+
+    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setPosition(sprite, V2(960, 540));
+    sfSprite_setScale(sprite, scale);
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+    sfSprite_destroy(sprite);
+
 	sfText *game_over_text = sfText_create();
 	sfText_setString(game_over_text, gameover->game_over_message);
 	sfText_setCharacterSize(game_over_text, 120);
 	sfText_setFont(game_over_text, GetFont(&state->assets, state->font));
-	sfFloatRect bounds = sfText_getLocalBounds(game_over_text);
+
+	bounds = sfText_getLocalBounds(game_over_text);
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
+
 	v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
 			V2i(sfRenderWindow_getSize(state->renderer).x/2,
 				sfRenderWindow_getSize(state->renderer).y/9),
@@ -1189,7 +1286,7 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 							   bounds.top + bounds.height/2));
 	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
 			V2i(sfRenderWindow_getSize(state->renderer).x/2,
-				sfRenderWindow_getSize(state->renderer).y/5),
+				sfRenderWindow_getSize(state->renderer).y/5 + 30),
 			state->view);
 	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
 	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
@@ -1201,8 +1298,8 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
 	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
-			V2i(sfRenderWindow_getSize(state->renderer).x/3,
-				sfRenderWindow_getSize(state->renderer).y/2.5f),
+			V2i(sfRenderWindow_getSize(state->renderer).x/2,
+				sfRenderWindow_getSize(state->renderer).y/2.5f + 30),
 			state->view);
 	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
 	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
@@ -1220,8 +1317,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         state->ai_speed = gameplay_init_enemy_speed;
         state->battle_count = 0;
 
-        // CreateLevelState(state, LevelType_Menu);
-        Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
+        CreateLevelState(state, LevelType_Menu);
+        // Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 
         char *weapon_filenames[] = {
             "sprites/HandCovered.png",
@@ -1252,6 +1349,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->health_indicators[3] = LoadTexture(&state->assets, "sprites/EnemyHealthFull.png");
 		state->health_indicators[4] = LoadTexture(&state->assets, "sprites/EnemyHealthMedium.png");
 		state->health_indicators[5] = LoadTexture(&state->assets, "sprites/EnemyHealthLow.png");
+        state->health_indicators[6] = LoadTexture(&state->assets, "sprites/HealthEmpty.png");
 
 		state->shop_back = LoadTexture(&state->assets, "sprites/shop.png");
 		state->shop_items[0] = LoadTexture(&state->assets, "sprites/Apple.png");
@@ -1260,6 +1358,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->no_buy = LoadSound(&state->assets, "sounds/no_go2.wav");
 		state->buy = LoadSound(&state->assets, "sounds/buy.wav");
 
+        state->title = LoadTexture(&state->assets, "sprites/TitleYellow.png");
 		state->arena = LoadTexture(&state->assets, "sprites/Floor.png");
 
         state->swipe_sounds[0] = LoadSound(&state->assets, "sounds/swipe1.wav");

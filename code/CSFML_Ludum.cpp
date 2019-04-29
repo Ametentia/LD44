@@ -100,6 +100,11 @@ internal void CSFMLProcessEvents(Game_Input *current, Game_Input *prev) {
                                 prev_keyboard->block, pressed);
                     }
                     break;
+                    case sfKeyEscape: {
+                        CSFMLProcessButtonEvent(&current_keyboard->menu,
+                                prev_keyboard->block, pressed);
+                    }
+                    break;
                 }
             }
             break;

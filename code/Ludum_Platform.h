@@ -20,9 +20,10 @@ struct Game_Controller {
             Game_Button move_down;
 			Game_Button accept;
             Game_Button block;
+            Game_Button menu;
         };
 
-        Game_Button buttons[6];
+        Game_Button buttons[7];
     };
 };
 

@@ -9,6 +9,12 @@
 
 #include "Ludum_Entity.h"
 
+struct Stat_Totals {
+    u32 money_made;
+    u32 days_survived;
+    u32 enemies_killed;
+};
+
 struct Moving_Blood {
 	bool active = false;
 	v2 position;
@@ -95,6 +101,8 @@ struct Game_State {
     f32 ai_speed;
 
     Asset_Handle arena;
+    Asset_Handle title;
+
     Asset_Handle weapon_textures[WeaponType_Count + 1];
     Asset_Handle logo_texture;
     Asset_Handle player_textures[3];
@@ -104,7 +112,7 @@ struct Game_State {
     int player_weapon[2] = {0, 0};
 
 	Asset_Handle character;
-	Asset_Handle health_indicators[6];
+	Asset_Handle health_indicators[7];
 	Asset_Handle swipe_sounds[6];
 
 	Asset_Handle heat_indicators[6];
@@ -125,6 +133,8 @@ struct Game_State {
     Asset_Handle shop_back;
     Asset_Handle no_buy;
     Asset_Handle buy;
+
+    Stat_Totals totals;
 
     Level_State *current_state;
 
