@@ -29,10 +29,45 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
     }
 }
 
+internal void AddDashLines(Play_State *play, v2 a, v2 b) {
+    Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+    new_blood->active = true;
+    new_blood->colour = sfWhite;
+    new_blood->position = a;
+    new_blood->dir = Normalise(b - a);
+    new_blood->dir += V2((f32)random(-1000, 1000)/1000, (f32)random(-1000, 1000)/1000);
+    new_blood->lifetime = 0.5f;
+    new_blood->speed = 2;
+    play->moving_blood_count++;
+    if(play->moving_blood_count > 74) {
+        play->moving_blood_count = 0;
+    }
+}
+
+internal void AddSparks(Play_State *play, v2 a, v2 b) {
+	for(int i = random(5, 11); i > 0; i--){
+		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+		new_blood->active = true;
+        new_blood->colour = sfYellow;
+		new_blood->position = a;
+		new_blood->dir = Perp(Normalise(b - a));
+        if(random(0,10)>5)
+            new_blood->dir = -new_blood->dir;
+		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
+		new_blood->lifetime = 0.2f;
+		new_blood->speed = random(10, 15);
+		play->moving_blood_count++;
+		if(play->moving_blood_count > 74) {
+			play->moving_blood_count = 0;
+		}
+	}
+}
+
 internal void AddBlood(Play_State *play, Controlled_Player *player, AI_Player *enemy) {
 	for(int i = random(30, 37); i > 0; i--){
 		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
 		new_blood->active = true;
+        new_blood->colour = sfRed;
 		new_blood->position = player->position;
 		new_blood->dir = Normalise(player->position - enemy->position);
 		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
@@ -45,11 +80,28 @@ internal void AddBlood(Play_State *play, Controlled_Player *player, AI_Player *e
 	}
 }
 
+internal void AddBlood(Play_State *play, v2 position) {
+    for(int i = random(1, 2); i>0;i--) {
+        Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
+        new_blood->active = true;
+        new_blood->colour = sfRed;
+        new_blood->position = position;
+        new_blood->dir = V2((f32)random(-1000, 1000)/1000, (f32)random(-1000, 1000)/1000);
+        new_blood->lifetime = 0.2f;
+        new_blood->speed = random(10, 15);
+        play->moving_blood_count++;
+        if(play->moving_blood_count > 74) {
+            play->moving_blood_count = 0;
+        }
+    }
+}
+
 internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *player) {
 	for(int i = random(30, 37); i > 0; i--){
 		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
 		new_blood->active = true;
 		new_blood->position = enemy->position;
+        new_blood->colour = sfRed;
 		new_blood->dir = -Normalise(player->position - enemy->position);
 		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
 		new_blood->lifetime = 0.2f;
@@ -63,8 +115,19 @@ internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *pl
 
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
     AI_Player *enemy = &play->enemies[aiNum];
-    if (enemy->health <= 0) { return; }
+    if (enemy->health <= 0) { 
+        sfConvexShape_setPosition(enemy->shape, enemy->position);
+        sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
+        if(random(0,10)>5)
+            AddBlood(play, enemy->position);
+        return; 
+    }
     Controlled_Player *player = &play->players[0];
+    if (player->health<=0) {
+        sfConvexShape_setPosition(enemy->shape, enemy->position);
+        sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
+        return;
+    }
 
     f32 angle = 0;
 	f32 distance = Length(enemy->position - player->position);
@@ -73,6 +136,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
         bool attacking = IsAttacking(enemy->weapons);
         if (!attacking) {
 		    enemy->position += enemy->attack_dir * enemy->speed_modifier * 700 * dt;
+            AddDashLines(play, enemy->position, player->position);
         }
 
         if(Length(enemy->position - enemy->attack_start) > 300) {
@@ -108,6 +172,9 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                 }
 
                 AttackWithWeapon(weapon, primary);
+                sfSound_setBuffer(state->sound, GetSound(&state->assets, state->swipe_sounds[random(0, 5)]));
+                sfSound_setVolume(state->sound, 30);
+                sfSound_play(state->sound);
             }
 
             enemy->attacking = false;
@@ -218,8 +285,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
         v2 hitbox_correction = GetWeaponHitboxOffset(weapon, it == 0, enemy->facing_direction);
 
-        v2 position = enemy->position +
-            (40 * enemy->facing_direction + (it == 0 ? offset : -offset)) + weapon_offset;
+        v2 position = enemy->position + (40 * enemy->facing_direction + (it == 0 ? offset : -offset)) + weapon_offset;
 
         sfSprite_setPosition(sprite, position);
 
@@ -259,8 +325,18 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
                 player->health -= defence_modifier * enemy->strength_modifier *
                     GetWeaponDamage(weapon);
-
-                AddBlood(play, player, enemy);
+                if(IsBlocking(player->weapons, player->weapon_count)) {
+                        AddSparks(play, player->position, enemy->position);
+                        sfSound_setBuffer(state->sound, GetSound(&state->assets, state->block));
+                        sfSound_setVolume(state->sound, 15);
+                        sfSound_play(state->sound);
+                }
+                else {
+                    AddBlood(play, player, enemy);
+                    sfSound_setBuffer(state->hurt_sound, GetSound(&state->assets, state->hurt_oof));
+                    sfSound_setVolume(state->hurt_sound, 25);
+                    sfSound_play(state->hurt_sound);
+                }
 
                 weapon->has_hit = true;
             }
@@ -279,10 +355,13 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
 			blood->position += blood->dir * blood->speed;
 			blood->lifetime -= input->delta_time;
 			sfConvexShape_setPosition(play->blood_shape, blood->position);
+			sfConvexShape_setFillColor(play->blood_shape, blood->colour);
 			sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
 			if(blood->lifetime < 0) {
-				play->stale_blood[play->stale_blood_count] = blood->position;
-				play->stale_blood_count++;
+                if(sfColor_toInteger(blood->colour) == sfColor_toInteger(sfRed)){
+                    play->stale_blood[play->stale_blood_count] = blood->position;
+                    play->stale_blood_count++;
+                }
 				if(play->stale_blood_count > 499) { play->stale_blood_count = 0; }
 				blood->active = false;
 			}
@@ -290,6 +369,7 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
 	}
 	for(int i = 0; i < 500; i++) {
 		sfConvexShape_setPosition(play->blood_shape, play->stale_blood[i]);
+		sfConvexShape_setFillColor(play->blood_shape, sfRed);
 		if(play->stale_blood[i].x != 0)
 			sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
 	}
@@ -315,6 +395,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         weapons[0] = PrefabWeapon(state, WeaponType_Sword);
         weapons[1] = PrefabWeapon(state, WeaponType_Shield);
 		sfMusic_play(GetMusic(&state->assets, state->cheer));
+		sfMusic_play(GetMusic(&state->assets, state->fight_music));
 
         Player_Stats stats = GetDefaultPlayerStats();
 
@@ -349,7 +430,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             enemy->weapons[1] = PrefabWeapon(state, WeaponType_Shield);
             enemy->weapons[1].attack_time_1 = 2.5;
 
-            enemy->strength_modifier = 0.3;
+            enemy->strength_modifier = 1;
             enemy-> attacking = false;
             enemy->attack_wait_time = 0;
             enemy->health = 100;
@@ -376,6 +457,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		int pay = 100*play->ai_count - (100-player->health)+10;
 		int heal = (100-player->health);
 		sfMusic_stop(GetMusic(&state->assets, state->cheer));
+		sfMusic_stop(GetMusic(&state->assets, state->fight_music));
 		Level_State *level = RemoveLevelState(state);
 		Free(level);
 		Level_State *current_state = state->current_state;
@@ -385,17 +467,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		payment->family_hunger++;
 		payment->family_heat++;
 		int illness_chance = 0;
-		illness_chance += payment->family_hunger > 1 ? payment->family_hunger - 1 : 0;
-		illness_chance += payment->family_heat > 3 ? payment->family_heat - 2 : 0;
-		int random_num = random(0,10);
-		payment->gameover_worth += illness_chance + (payment->family_ill ? 3 : 0);
-		if(!payment->family_ill && illness_chance < 4) {
-			payment->gameover_worth = 0;
-		}
-		if(random(0,10) < illness_chance && !payment->family_ill){
-			payment->family_ill = true;
-		}
 		if(payment->gameover_worth > 15){
+            AddBlood(play, player->position);
 			Level_State *payment = RemoveLevelState(state);
 			Free(payment);
 			Level_State *current_state = state->current_state;
@@ -406,6 +479,16 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			gameover->game_over_message = "Your Whole Family Has Died.\n";
 			gameover->game_over_tag_line = "Well Done.";
 			gameover->game_over_stats = "TODO\nTODO\nTODO\n";
+		}
+		illness_chance += payment->family_hunger > 1 ? payment->family_hunger - 1 : 0;
+		illness_chance += payment->family_heat > 3 ? payment->family_heat - 2 : 0;
+		int random_num = random(0,10);
+		payment->gameover_worth += illness_chance + (payment->family_ill ? 3 : 0);
+		if(!payment->family_ill && illness_chance < 4) {
+			payment->gameover_worth = 0;
+		}
+		if(random(0,10) < illness_chance && !payment->family_ill){
+			payment->family_ill = true;
 		}
 		return;
 	}
@@ -534,6 +617,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
 
 
+        AddBlood(play, player->position);
 		sfText *lose_text = sfText_create();
 		sfText_setString(lose_text, "You Have Died.");
 		sfText_setCharacterSize(lose_text, 120);
@@ -565,7 +649,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		}
 	}
 
-	bool won = false;
+	bool won = true;
 	for(u32 i = 0; i < play->ai_count; i++) {
 		UpdateAIPlayer(state, play, dt, i);
 		if(play->enemies[i].health > 0) {
@@ -798,16 +882,25 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->health_indicators[3] = LoadTexture(&state->assets, "sprites/EnemyHealthFull.png");
 		state->health_indicators[4] = LoadTexture(&state->assets, "sprites/EnemyHealthMedium.png");
 		state->health_indicators[5] = LoadTexture(&state->assets, "sprites/EnemyHealthLow.png");
+        state->swipe_sounds[0] = LoadSound(&state->assets, "sounds/swipe1.wav");
+        state->swipe_sounds[1] = LoadSound(&state->assets, "sounds/swipe2.wav");
+        state->swipe_sounds[2] = LoadSound(&state->assets, "sounds/swipe3.wav");
+        state->swipe_sounds[3] = LoadSound(&state->assets, "sounds/swipe4.wav");
+        state->swipe_sounds[4] = LoadSound(&state->assets, "sounds/swipe5.wav");
+        state->swipe_sounds[5] = LoadSound(&state->assets, "sounds/swipe6.wav");
+        state->hurt_oof = LoadSound(&state->assets, "sounds/oof.wav");
         state->player_textures[0] = LoadTexture(&state->assets, "sprites/LucySprite.png");
 		state->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
 		state->character = LoadTexture(&state->assets, "sprites/Lucy.png");
 		state->cheer = LoadMusic(&state->assets, "sounds/cheer.wav");
+		state->fight_music = LoadMusic(&state->assets, "music/Holographic mirage.wav");
 		sfMusic_setLoop(GetMusic(&state->assets, state->cheer), true);
+		sfMusic_setLoop(GetMusic(&state->assets, state->fight_music), true);
 		sfMusic_setVolume(GetMusic(&state->assets, state->cheer), 15);
-		state->short_cheer[0] = LoadSound(&state->assets, "sounds/short_cheer1.wav");
-		state->short_cheer[1] = LoadSound(&state->assets, "sounds/short_cheer2.wav");
-		state->short_cheer[2] = LoadSound(&state->assets, "sounds/short_cheer3.wav");
+		sfMusic_setVolume(GetMusic(&state->assets, state->fight_music), 30);
+		state->block = LoadSound(&state->assets, "sounds/block.wav");
 		state->sound = sfSound_create();
+		state->hurt_sound = sfSound_create();
         state->initialised = true;
     }
 

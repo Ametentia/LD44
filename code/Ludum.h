@@ -15,6 +15,7 @@ struct Moving_Blood {
 	v2 dir;
 	f32 speed = 20;
 	f32 lifetime;
+    sfColor colour = sfRed;
 };
 
 struct Menu_State {
@@ -86,8 +87,8 @@ struct Game_State {
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
-	s32 ai_count = 1;
-	f32 ai_speed = 0.8f;
+	s32 ai_count = 2;
+	f32 ai_speed = 1;
 
     Asset_Handle weapon_textures[WeaponType_Count];
     Asset_Handle logo_texture;
@@ -96,9 +97,14 @@ struct Game_State {
 
 	Asset_Handle character;
 	Asset_Handle health_indicators[6];
+	Asset_Handle swipe_sounds[6];
 	Asset_Handle cheer;
-	Asset_Handle short_cheer[3];
+	Asset_Handle block;
+    f32 block_pitch;
+    Asset_Handle fight_music;
 	sfSound *sound;
+	sfSound *hurt_sound;
+	Asset_Handle hurt_oof;
 
     Level_State *current_state;
 

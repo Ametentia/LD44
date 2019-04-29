@@ -344,8 +344,7 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
 
         v2 hitbox_correction = GetWeaponHitboxOffset(weapon, it == 0, player->facing_direction);
 
-        v2 position = player->position +
-            (40 * player->facing_direction + (it == 0 ? offset : -offset)) + weapon_offset;
+        v2 position = player->position + (40 * player->facing_direction + (it == 0 ? offset : -offset)) + weapon_offset;
 
         sfSprite_setPosition(sprite, position);
 
@@ -370,6 +369,9 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
             // thus we know that state->current_state is a LevelType_Play
 
             Assert(state->current_state->type == LevelType_Play);
+            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->swipe_sounds[random(0, 5)]));
+            sfSound_setVolume(state->sound, 30);
+            sfSound_play(state->sound);
 
             Play_State *play = &state->current_state->play;
             for (u32 it = 0; it < play->ai_count; ++it) {
@@ -398,7 +400,16 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
 
                     ai->health -= defence_modifier *
                         player->strength_modifier * GetWeaponDamage(weapon);
-
+                    if (IsBlocking(ai->weapons, ai->weapon_count)){
+                        sfSound_setBuffer(state->sound, GetSound(&state->assets, state->block));
+                        sfSound_setVolume(state->sound, 25);
+                        sfSound_play(state->sound);
+                    }
+                    else {
+                        sfSound_setBuffer(state->hurt_sound, GetSound(&state->assets, state->hurt_oof));
+                        sfSound_setVolume(state->hurt_sound, 25);
+                        sfSound_play(state->hurt_sound);
+                    }
                     printf("[Info][Attack] New AI Health: %f (Old was: %f)\n",
                             ai->health, old_hp);
 
