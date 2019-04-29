@@ -20,8 +20,82 @@ internal Level_State *RemoveLevelState(Game_State *state) {
     return result;
 }
 
+internal void UpdateRenderCreditState(Game_State *state, Game_Input *input) {
+    Game_Controller *controller = GameGetController(input, 0);
+
+    Animation *animation = &state->background_animation;
+    UpdateAnimation(animation, input->delta_time);
+    v2 scale = V2(4, 4);
+    for (f32 x = -1920; x < (2 * 1920); x += (scale.x * animation->width)) {
+        for (f32 y = -1080; y < (2 * 1080); y += (scale.y * animation->height)) {
+            RenderAnimation(state, animation, V2(x, y), scale);
+        }
+    }
+
+
+    scale += V2(2, 2);
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->arena), true);
+
+    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setPosition(sprite, V2(960, 540));
+    sfSprite_setScale(sprite, scale);
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+    sfSprite_destroy(sprite);
+
+    sfText *text = sfText_create();
+    sfText_setFont(text, GetFont(&state->assets, state->font));
+    sfText_setCharacterSize(text, 70);
+    sfText_setString(text, "Matthew Threlfall   ---  Programming");
+
+    bounds = sfText_getLocalBounds(text);
+    sfText_setOrigin(text, V2(bounds.width / 2, bounds.height / 2));
+    sfText_setPosition(text, V2(960, 300));
+
+    sfRenderWindow_drawText(state->renderer, text, 0);
+
+    sfText_setString(text, "Cameron Thornton  ---  Artwork");
+
+    bounds = sfText_getLocalBounds(text);
+    sfText_setOrigin(text, V2(bounds.width / 2, bounds.height / 2));
+    sfText_setPosition(text, V2(960, 450));
+
+    sfRenderWindow_drawText(state->renderer, text, 0);
+
+    sfText_setString(text, "James Bulman  ---  Programming");
+
+    bounds = sfText_getLocalBounds(text);
+    sfText_setOrigin(text, V2(bounds.width / 2, bounds.height / 2));
+    sfText_setPosition(text, V2(960, 600));
+
+    sfRenderWindow_drawText(state->renderer, text, 0);
+
+    sfText_setString(text, "Alex Goldsack  ---  Music");
+
+    bounds = sfText_getLocalBounds(text);
+    sfText_setOrigin(text, V2(bounds.width / 2, bounds.height / 2));
+    sfText_setPosition(text, V2(960, 750));
+
+    sfRenderWindow_drawText(state->renderer, text, 0);
+
+    sfText_destroy(text);
+
+    for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
+        if (JustPressed(controller->buttons[it])) {
+            Level_State *level = RemoveLevelState(state);
+            Free(level);
+        }
+    }
+
+}
+
 internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(1, 0, 0, 1));
+
+    input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
+            V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
 
     Game_Controller *controller = GameGetController(input, 0);
 
@@ -56,6 +130,50 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
     sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
     sfSprite_setPosition(sprite, V2(960, 250));
     sfSprite_setScale(sprite, V2(1, 1));
+
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
+    // Start button
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->start[0]), true);
+
+    bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setScale(sprite, V2(0.6, 0.6));
+    sfSprite_setPosition(sprite, V2(960, 540));
+
+    bounds = sfSprite_getGlobalBounds(sprite);
+
+    v2 mouse = input->unprojected_mouse;
+    if (mouse.x >= bounds.left && mouse.x <= (bounds.left + bounds.width)) {
+        if (mouse.y >= bounds.top && mouse.y <= (bounds.top + bounds.height)) {
+            sfSprite_setTexture(sprite, GetTexture(&state->assets, state->start[1]), true);
+            if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+                CreateLevelState(state, LevelType_Payment);
+            }
+        }
+    }
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
+    // Credits button
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->credits[0]), true);
+
+    bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setScale(sprite, V2(0.6, 0.6));
+    sfSprite_setPosition(sprite, V2(960, 840));
+
+    bounds = sfSprite_getGlobalBounds(sprite);
+
+    if (mouse.x >= bounds.left && mouse.x <= (bounds.left + bounds.width)) {
+        if (mouse.y >= bounds.top && mouse.y <= (bounds.top + bounds.height)) {
+            sfSprite_setTexture(sprite, GetTexture(&state->assets, state->credits[1]), true);
+            if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+                CreateLevelState(state, LevelType_Credit);
+            }
+        }
+    }
 
     sfRenderWindow_drawSprite(state->renderer, sprite, 0);
     sfSprite_destroy(sprite);
@@ -1381,6 +1499,12 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->buy = LoadSound(&state->assets, "sounds/buy.wav");
 
         state->title = LoadTexture(&state->assets, "sprites/TitleYellow.png");
+        state->start[0] = LoadTexture(&state->assets, "sprites/Start.png");
+        state->start[1] = LoadTexture(&state->assets, "sprites/StartSelected.png");
+
+        state->credits[0] = LoadTexture(&state->assets, "sprites/Credits.png");
+        state->credits[1] = LoadTexture(&state->assets, "sprites/CreditsSelected.png");
+
 		state->arena = LoadTexture(&state->assets, "sprites/Floor.png");
 
         state->swipe_sounds[0] = LoadSound(&state->assets, "sounds/swipe1.wav");
@@ -1458,5 +1582,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
             UpdateRenderGameOverState(state, game_over, input);
         }
         break;
+        case LevelType_Credit: {
+            UpdateRenderCreditState(state, input);
+        }
     }
 }

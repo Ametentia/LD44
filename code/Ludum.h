@@ -75,6 +75,7 @@ enum Level_Type {
 	LevelType_Logo,
 	LevelType_Payment,
 	LevelType_Game_Over,
+    LevelType_Credit
 };
 
 struct Level_State {
@@ -102,7 +103,11 @@ struct Game_State {
     f32 countdown = 3;
 
     Asset_Handle arena;
+
     Asset_Handle title;
+    Asset_Handle start[2];
+    Asset_Handle credits[2];
+
 
     Asset_Handle weapon_textures[WeaponType_Count + 1];
     Asset_Handle logo_texture;
