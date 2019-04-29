@@ -101,9 +101,16 @@ struct Game_State {
     Asset_Handle enemy_textures[3];
 	Asset_Handle font;
 
+    int player_weapon[2] = {0, 0};
+
 	Asset_Handle character;
 	Asset_Handle health_indicators[6];
 	Asset_Handle swipe_sounds[6];
+
+	Asset_Handle heat_indicators[6];
+	Asset_Handle food_indicators[5];
+	Asset_Handle ill_indicators[2];
+
 	Asset_Handle cheer;
 	Asset_Handle block;
     f32 block_pitch;
