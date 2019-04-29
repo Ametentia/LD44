@@ -160,25 +160,6 @@ internal void UpdateRenderThrownWeapons(Game_State *state, Play_State *play, f32
         sfRenderWindow_drawSprite(state->renderer, sprite, 0);
         sfSprite_destroy(sprite);
 
-        sfCircleShape *hitbox = sfCircleShape_create();
-        sfCircleShape_setRadius(hitbox, 20);
-        sfCircleShape_setOrigin(hitbox, V2(20, 20));
-        sfCircleShape_setFillColor(hitbox, sfTransparent);
-        sfCircleShape_setOutlineThickness(hitbox, 2);
-        sfCircleShape_setOutlineColor(hitbox, sfMagenta);
-
-
-        v2 hitbox_correction = V2(0, 0);
-        if (!it->stopped) {
-            hitbox_correction = GetWeaponHitboxOffset(&it->weapon, true, norm_vel);
-        }
-
-        sfCircleShape_setPosition(hitbox, it->position + hitbox_correction);
-
-        sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
-
-        sfCircleShape_destroy(hitbox);
-
         first_thrown_weapon = false;
         if (!remove) { it = it->next; }
         else {
@@ -350,8 +331,8 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
     Assert(controller->is_connected);
 
     /// Check input for movement
-    if (player->health > 0) {
-    f32 player_speed = 900 * player->speed_modifier;
+    if (player->health > 0 && state->countdown < 0) {
+        f32 player_speed = 900 * player->speed_modifier;
         v2 move_direction = V2(0, 0);
         if (IsPressed(controller->move_up)) {
             move_direction.y = -1;
@@ -565,16 +546,6 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
         sfSprite_setPosition(sprite, position);
 
         sfRenderWindow_drawSprite(state->renderer, sprite, 0);
-        sfCircleShape *hitbox = sfCircleShape_create();
-        sfCircleShape_setRadius(hitbox, 20);
-        sfCircleShape_setOrigin(hitbox, V2(20, 20));
-        sfCircleShape_setPosition(hitbox, position + hitbox_correction);
-        sfCircleShape_setFillColor(hitbox, sfTransparent);
-        sfCircleShape_setOutlineColor(hitbox, sfYellow);
-        sfCircleShape_setOutlineThickness(hitbox, 2);
-
-        sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
-        sfCircleShape_destroy(hitbox);
 
         // @Note: Can't "attack" with shield
         if (weapon->type != WeaponType_Shield

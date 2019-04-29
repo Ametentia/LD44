@@ -154,11 +154,11 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
     sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
     sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
 
-    if (enemy->health <= 0) {
+    if (enemy->health <= 0 || state->countdown > 0) {
         sfSprite_setPosition(sprite, enemy->position);
         angle = Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
 
-        if(enemy->blood_timer > 0)  {
+        if(enemy->blood_timer > 0 && state->countdown < 0)  {
             AddBlood(play, enemy->position);
             enemy->blood_timer-=dt;
         }
@@ -169,8 +169,6 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
     }
     Controlled_Player *player = &play->players[0];
     if (player->health<=0) {
-        //sfConvexShape_setPosition(enemy->shape, enemy->position);
-        //sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
         return;
     }
 
@@ -700,22 +698,31 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     }
 
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
+    state->countdown -=dt;
+    if(state->countdown > 0 ) {
+        char countdown_time[128];
+        sprintf(countdown_time, "%.0f", state->countdown);
+		sfText *lose_text = sfText_create();
+		sfText_setString(lose_text, countdown_time);
+		sfText_setCharacterSize(lose_text, 120);
+		sfText_setFont(lose_text, GetFont(&state->assets, state->font));
+		sfFloatRect bounds = sfText_getLocalBounds(lose_text);
+		sfText_setOrigin(lose_text, V2(bounds.left + bounds.width/2,
+						           bounds.top + bounds.height/2));
+		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+				V2i(sfRenderWindow_getSize(state->renderer).x/2,
+					sfRenderWindow_getSize(state->renderer).y/10),
+				state->view);
+		sfText_setPosition(lose_text, V2(text_loc.x, text_loc.y));
+		sfText_setFillColor(lose_text, CreateColour(1, 1, 1, 1));
+		sfRenderWindow_drawText(state->renderer, lose_text, NULL);
+        sfText_destroy(lose_text);
+    }
+
 
 	UpdateMovingBlood(state, play, input);
     UpdateRenderThrownWeapons(state, play, input->delta_time);
     UpdateRenderPlayer(state, play, input, player);
-
-
-    // @Debug: This is showing the hitbox
-    sfCircleShape *hitbox = sfCircleShape_create();
-    sfCircleShape_setRadius(hitbox, player->hitbox_radius);
-    sfCircleShape_setOrigin(hitbox, V2(player->hitbox_radius, player->hitbox_radius));
-    sfCircleShape_setPosition(hitbox, player->position);
-    sfCircleShape_setFillColor(hitbox, sfTransparent);
-    sfCircleShape_setOutlineThickness(hitbox, 2);
-    sfCircleShape_setOutlineColor(hitbox, colour);
-    sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
-    sfCircleShape_destroy(hitbox);
 
 
 	if(player->health > 0) {
@@ -782,6 +789,20 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
 				V2i(sfRenderWindow_getSize(state->renderer).x/2,
 					sfRenderWindow_getSize(state->renderer).y/10),
+				state->view);
+		sfText_setPosition(lose_text, V2(text_loc.x, text_loc.y));
+		sfText_setFillColor(lose_text, CreateColour(1, 1, 1, 1));
+		sfRenderWindow_drawText(state->renderer, lose_text, NULL);
+
+		sfText_setString(lose_text, "Press Space to Continue");
+		sfText_setCharacterSize(lose_text, 26);
+		sfText_setFont(lose_text, GetFont(&state->assets, state->font));
+		bounds = sfText_getLocalBounds(lose_text);
+		sfText_setOrigin(lose_text, V2(bounds.left + bounds.width/2,
+						           bounds.top + bounds.height/2));
+		text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+				V2i(sfRenderWindow_getSize(state->renderer).x/2,
+					sfRenderWindow_getSize(state->renderer).y/10*9),
 				state->view);
 		sfText_setPosition(lose_text, V2(text_loc.x, text_loc.y));
 		sfText_setFillColor(lose_text, CreateColour(1, 1, 1, 1));
@@ -1000,6 +1021,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfText_destroy(difficulty);
     if(selected) {
 	    sfMusic_stop(GetMusic(&state->assets, state->shop_music));
+        state->countdown = 3;
         CreateLevelState(state, LevelType_Play);
     }
 
@@ -1024,9 +1046,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
             if(x_correct && y_correct) {
                 switch(i) {
                     case 0:
-                        if(payment->balence >= 80) {
+                        if(payment->balence >= 90) {
                             payment->family_hunger-=2;
-                            payment->balence -= 80;
+                            payment->balence -= 90;
                             sfSound_setBuffer(state->sound, GetSound(&state->assets, state->buy));
                             sfSound_setVolume(state->sound, 30);
                             sfSound_play(state->sound);
@@ -1088,7 +1110,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
                     case 0:
                         if(payment->balence >= 350) {
                             state->player_weapon[0] = 2;
-                            payment->balence -= 250;
+                            payment->balence -= 350;
                             sfSound_setBuffer(state->sound, GetSound(&state->assets, state->buy));
                             sfSound_setVolume(state->sound, 30);
                             sfSound_play(state->sound);

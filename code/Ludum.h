@@ -99,6 +99,7 @@ struct Game_State {
     s32 battle_count;
     s32 ai_count;
     f32 ai_speed;
+    f32 countdown = 3;
 
     Asset_Handle arena;
     Asset_Handle title;
