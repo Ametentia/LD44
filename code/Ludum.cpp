@@ -427,7 +427,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                         sfSound_play(state->sound);
                 }
                 else {
-                    AddBlood(play, player->position, player->position-enemy->position);
+                    AddBlood(play, player->position, Normalise(player->position-enemy->position));
                     sfSound_setBuffer(state->hurt_sound, GetSound(&state->assets, state->hurt_oof));
                     sfSound_setVolume(state->hurt_sound, 25);
                     sfSound_play(state->hurt_sound);
