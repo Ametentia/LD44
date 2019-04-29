@@ -309,13 +309,11 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
 
     /// Keep inside the arena
     // @Speed: Inefficient
-#if 0
     v2 dir = Normalise(V2(960, 540) - player->position);
     f32 dist = Length(V2(960, 540) - player->position);
     if ((player->hitbox_radius + dist) > 1000) {
         player->position += (dist - (1000 - player->hitbox_radius)) * dir;
     }
-#endif
 
     Thrown_Weapon *thrown_weapon = play->thrown_weapons;
     bool first_thrown_weapon = true; // @Hack: To clear the top of the linked list

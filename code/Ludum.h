@@ -28,8 +28,8 @@ struct Play_State {
 	AI_Player enemies[10]; // 10 as a soft max for now
 	u8 ai_count;
     sfCircleShape *arena;
-	Moving_Blood active_blood[100];
-	v2 stale_blood[500];
+	Moving_Blood active_blood[250];
+	v2 stale_blood[1000];
 	u32 stale_blood_count;
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
@@ -89,8 +89,9 @@ struct Game_State {
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
-	s32 ai_count = 2;
+	s32 ai_count = 1;
 	f32 ai_speed = 1;
+    s32 battle_count = 0;
 
     Asset_Handle weapon_textures[WeaponType_Count];
     Asset_Handle logo_texture;
@@ -103,10 +104,17 @@ struct Game_State {
 	Asset_Handle cheer;
 	Asset_Handle block;
     f32 block_pitch;
-    Asset_Handle fight_music;
+    Asset_Handle fight_music[2];
+    s32 music_num;
+    Asset_Handle shop_music;
 	sfSound *sound;
 	sfSound *hurt_sound;
 	Asset_Handle hurt_oof;
+
+    Asset_Handle shop_items[3];
+    Asset_Handle shop_back;
+    Asset_Handle no_buy;
+    Asset_Handle buy;
 
     Level_State *current_state;
 

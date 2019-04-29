@@ -106,6 +106,7 @@ struct AI_Player {
 	f32 attack_wait_time;
 
     f32 block_timer;
+    f32 blood_timer;
 
 #if 0
     bool has_shield;
