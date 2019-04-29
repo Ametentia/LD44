@@ -522,7 +522,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             enemy->texture = state->enemy_textures[0];
             enemy->weapons[0] = PrefabWeapon(state,
                 (Weapon_Type)random(state->battle_count > 5 ? 2:0,
-                (s32)Clamp(state->battle_count, 1, 3))
+                (s32)Clamp(state->battle_count, 1, 4))
             );
             enemy->weapons[1] = PrefabWeapon(state, (Weapon_Type)(state->battle_count > 7 ? 1:0));
             enemy->blood_timer = 3;
