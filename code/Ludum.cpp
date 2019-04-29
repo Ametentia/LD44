@@ -63,13 +63,13 @@ internal void AddSparks(Play_State *play, v2 a, v2 b) {
 	}
 }
 
-internal void AddBlood(Play_State *play, Controlled_Player *player, AI_Player *enemy) {
+internal void AddBlood(Play_State *play, v2 position, v2 direction) {
 	for(int i = random(30, 37); i > 0; i--){
 		Moving_Blood *new_blood = &play->active_blood[play->moving_blood_count];
 		new_blood->active = true;
         new_blood->colour = sfRed;
-		new_blood->position = player->position;
-		new_blood->dir = Normalise(player->position - enemy->position);
+		new_blood->position = position;
+		new_blood->dir = direction;
 		new_blood->dir += V2((f32)random(-500, 500)/1000, (f32)random(-500, 500)/1000);
 		new_blood->lifetime = 0.2f;
 		new_blood->speed = random(10, 15);
@@ -116,22 +116,28 @@ internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *pl
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
     AI_Player *enemy = &play->enemies[aiNum];
     if (enemy->health <= 0) { 
-        sfConvexShape_setPosition(enemy->shape, enemy->position);
-        sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
+        //sfSprite_setPosition(enemy->sprite, enemy->position);
+        //sfRenderWindow_drawSprite(state->renderer, enemy->sprite, 0);
         if(random(0,10)>5)
             AddBlood(play, enemy->position);
         return; 
     }
     Controlled_Player *player = &play->players[0];
     if (player->health<=0) {
-        sfConvexShape_setPosition(enemy->shape, enemy->position);
-        sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
+        //sfConvexShape_setPosition(enemy->shape, enemy->position);
+        //sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
         return;
     }
 
     f32 angle = 0;
 	f32 distance = Length(enemy->position - player->position);
 	enemy->attack_wait_time -= dt;
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, enemy->texture), true);
+
+    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+
 	if(enemy->attacking) {
         bool attacking = IsAttacking(enemy->weapons);
         if (!attacking) {
@@ -171,6 +177,30 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                     primary = true;
                 }
 
+                if (!primary && weapon->attack_2 == AttackType_Throw) {
+                    Thrown_Weapon *thrown = cast(Thrown_Weapon *) Alloc(sizeof(Thrown_Weapon));
+                    thrown->weapon = *weapon;
+                    AttackWithWeapon(&thrown->weapon, false);
+                    thrown->prev = 0;
+                    thrown->next = play->thrown_weapons;
+                    if (play->thrown_weapons) { play->thrown_weapons->prev = thrown; }
+                    play->thrown_weapons = thrown;
+
+                    v2 offset = 30 * Normalise(Perp(enemy->facing_direction));
+                    v2 hitbox_correction = GetWeaponHitboxOffset(weapon, true,
+                                enemy->facing_direction);
+
+                    thrown->strength = enemy->strength_modifier;
+                    thrown->position = (enemy->position + (40 * enemy->facing_direction))
+                        + offset + hitbox_correction;
+                    thrown->velocity = 550 * enemy->facing_direction;
+                    thrown->stopped = false;
+                    // To stop the player from getting hit by their own thrown weapon
+                    thrown->from_player = false;
+
+                    RemoveWeapon(state, enemy->weapons, 0);
+                }
+
                 AttackWithWeapon(weapon, primary);
                 sfSound_setBuffer(state->sound, GetSound(&state->assets, state->swipe_sounds[random(0, 5)]));
                 sfSound_setVolume(state->sound, 30);
@@ -199,7 +229,8 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
         enemy->facing_direction = enemy->attack_dir;
 		angle = (PI32 / 2.0) + Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
-    	sfConvexShape_setRotation(enemy->shape, Degrees(angle));
+
+        sfSprite_setRotation(sprite, Degrees(angle));
 	}
 	else if(distance > 300) {
 		v2 direction = Normalise(player->position -enemy->position);
@@ -253,8 +284,70 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 	if(!enemy->attacking) {
 		enemy->facing_direction = Normalise(player->position - enemy->position);
 		angle = (PI32 / 2.0) + Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
-    	sfConvexShape_setRotation(enemy->shape, Degrees(angle));
+        sfSprite_setRotation(sprite, Degrees(angle));
 	}
+
+    /// Checking thrown weapons
+    Thrown_Weapon *thrown_weapon = play->thrown_weapons;
+    bool first_thrown_weapon = true;
+    while (thrown_weapon) {
+        Thrown_Weapon *remove = 0;
+        v2 hitbox_correction = GetWeaponHitboxOffset(&thrown_weapon->weapon,
+                true, Normalise(thrown_weapon->velocity));
+
+        if (CircleIntersection(enemy->position, enemy->hitbox_radius,
+                    thrown_weapon->position + hitbox_correction, 20))
+        {
+            if (!thrown_weapon->stopped && !thrown_weapon->weapon.has_hit) {
+                // @Todo: Do damage to the player!
+                f32 defence_modifier = 1;
+                if (IsBlocking(enemy->weapons, enemy->weapon_count)) {
+                    Weapon *weapon = 0;
+                    for (u32 it = 0; it < player->weapon_count; ++it) {
+                        weapon = &player->weapons[it];
+                        if (weapon->type == WeaponType_Shield) { break; }
+                    }
+
+                    Assert(weapon);
+
+                    defence_modifier = GetWeaponDamage(weapon);
+                }
+
+                f32 damage = thrown_weapon->strength *
+                    GetWeaponDamage(&thrown_weapon->weapon);
+
+                f32 old_hp = enemy->health;
+                enemy->health -= (defence_modifier * damage);
+
+                printf("[Info][Attack] New AI Health: %f (Old was: %f)\n",
+                        enemy->health, old_hp);
+
+                AddBlood(play, enemy, player);
+
+                thrown_weapon->weapon.has_hit = true;
+            }
+            else if (thrown_weapon->stopped) {
+                // Pick up weapon that is on the ground
+                if (enemy->weapons[0].type == WeaponType_Fists) {
+                    enemy->weapons[0] = thrown_weapon->weapon;
+                    remove = thrown_weapon;
+                    thrown_weapon = thrown_weapon->next;
+
+                    // Unlink from list
+                    if (remove->prev) { remove->prev->next = remove->next; }
+                    if (remove->next) { remove->next->prev = remove->prev; }
+
+                    if (first_thrown_weapon) {
+                        play->thrown_weapons = thrown_weapon;
+                    }
+                }
+            }
+        }
+
+        first_thrown_weapon = false;
+        if (!remove) { thrown_weapon = thrown_weapon->next; }
+        else { Free(remove); }
+    }
 
     /// Weapon renders
     for (u32 it = 0; it < enemy->weapon_count; ++it) {
@@ -290,6 +383,8 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
         sfSprite_setPosition(sprite, position);
 
         sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+        sfSprite_destroy(sprite);
+
         sfCircleShape *hitbox = sfCircleShape_create();
         sfCircleShape_setRadius(hitbox, 20);
         sfCircleShape_setOrigin(hitbox, V2(20, 20));
@@ -332,7 +427,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                         sfSound_play(state->sound);
                 }
                 else {
-                    AddBlood(play, player, enemy);
+                    AddBlood(play, player->position, player->position-enemy->position);
                     sfSound_setBuffer(state->hurt_sound, GetSound(&state->assets, state->hurt_oof));
                     sfSound_setVolume(state->hurt_sound, 25);
                     sfSound_play(state->hurt_sound);
@@ -343,8 +438,9 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
         }
     }
 
-    sfConvexShape_setPosition(enemy->shape, enemy->position);
-    sfRenderWindow_drawConvexShape(state->renderer, enemy->shape, 0);
+    sfSprite_setPosition(sprite, enemy->position);
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+    sfSprite_destroy(sprite);
 }
 
 internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input *input) {
@@ -401,11 +497,6 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
         InitialisePlayer(state, player, V2(960, 540), weapons, 2, stats);
 
-        v2 points[4] = {
-            V2(-80, -40), V2(-80,  40),
-            V2( 80,  40), V2( 80, -40)
-        };
-
         play->blood_shape = sfConvexShape_create();
 		v2 blood_points[4] = {
 			V2(-10,-10), V2(-10, 10),
@@ -426,21 +517,14 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             enemy->position.x = random(-340, 1300);
             enemy->position.y = random(-340, 1300);
             enemy->weapon_count = 2; // @Todo: This needs to go, it is error prone
-            enemy->weapons[0] = PrefabWeapon(state, WeaponType_Sword);
-            enemy->weapons[1] = PrefabWeapon(state, WeaponType_Shield);
-            enemy->weapons[1].attack_time_1 = 2.5;
+            enemy->texture = state->player_textures[0];
+            enemy->weapons[0] = PrefabWeapon(state, WeaponType_Fists);
+            enemy->weapons[1] = PrefabWeapon(state, WeaponType_Fists);
 
             enemy->strength_modifier = 1;
             enemy-> attacking = false;
             enemy->attack_wait_time = 0;
             enemy->health = 100;
-            enemy->shape = sfConvexShape_create();
-            sfConvexShape_setPointCount(enemy->shape, ArrayCount(points));
-            sfConvexShape_setFillColor(enemy->shape, CreateColour(0.4, 0.4, 0.4, 1));
-			sfConvexShape_setTexture(enemy->shape, GetTexture(&state->assets, player->texture), false);
-            for (u32 it = 0; it < ArrayCount(points); ++it) {
-                sfConvexShape_setPoint(enemy->shape, it, points[it]);
-            }
         }
 		play->initialised = true;
 	}
@@ -550,8 +634,11 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
 
+    UpdateRenderThrownWeapons(state, play, input->delta_time);
+
 	UpdateMovingBlood(state, play, input);
-    UpdateRenderPlayer(state, input, player);
+    UpdateRenderPlayer(state, play, input, player);
+
 
     // @Debug: This is showing the hitbox
     sfCircleShape *hitbox = sfCircleShape_create();
@@ -566,31 +653,28 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
 
 	if(player->health > 0) {
-		sfConvexShape *player_health = sfConvexShape_create();
 		u8 health_ind = (player->health < 90) ? 1 : 0;
-		if(health_ind == 1)
-			health_ind = (player->health < 50 ) ? 2 : 1;
+		if(health_ind == 1) { health_ind = (player->health < 50 ) ? 2 : 1; }
 
-		v2 points[] = {
-			V2(-100, -100), V2(-100,  100),
-			V2( 100,  100), V2( 100, -100)
-		};
-		sfConvexShape_setPointCount(player_health, ArrayCount(points));
-		for (u32 it = 0; it < ArrayCount(points); ++it) {
-			sfConvexShape_setPoint(player_health, it, points[it]);
-		}
-		sfFloatRect bounds = sfConvexShape_getLocalBounds(player_health);
-		sfConvexShape_setOrigin(player_health, V2(bounds.left + bounds.width/2,
-								   bounds.top + bounds.height/2));
-		sfConvexShape_setTexture(player_health,
-				GetTexture(&state->assets, state->health_indicators[health_ind]), false);
+        sfSprite *player_health = sfSprite_create();
+        sfSprite_setTexture(player_health,
+                GetTexture(&state->assets, state->health_indicators[health_ind]), true);
+
+        sfFloatRect bounds = sfSprite_getLocalBounds(player_health);
+        sfSprite_setOrigin(player_health, V2(bounds.left + (bounds.width / 2),
+                    bounds.top + (bounds.height / 2)));
+
+        sfSprite_setScale(player_health, V2(4, 4));
+
 		v2 health_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
-				V2i(sfRenderWindow_getSize(state->renderer).x/20*18,
-					sfRenderWindow_getSize(state->renderer).y/20*17),
-				state->view);
-		sfConvexShape_setPosition(player_health,V2(health_loc.x, health_loc.y));
-		sfRenderWindow_drawConvexShape(state->renderer, player_health, 0);
+				V2i(sfRenderWindow_getSize(state->renderer).x / 20 * 18,
+					sfRenderWindow_getSize(state->renderer).y / 20 * 17), state->view);
 
+		sfSprite_setPosition(player_health, V2(health_loc.x, health_loc.y));
+		sfRenderWindow_drawSprite(state->renderer, player_health, 0);
+        sfSprite_destroy(player_health);
+
+        // Create Health text
 		sfText *health_text = sfText_create();
 		char health_str[3];
 		sprintf(health_str, "%.0f", player->health);
@@ -598,11 +682,12 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfText_setCharacterSize(health_text, 65);
 		sfText_setFont(health_text, GetFont(&state->assets, state->font));
 		bounds = sfText_getLocalBounds(health_text);
-		sfText_setOrigin(health_text, V2(bounds.left + bounds.width/2,
-						           bounds.top + bounds.height/2));
+		sfText_setOrigin(health_text,
+                V2(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
+
 		u32 shift = health_ind > 0 ? 15 : 0;
-		if(health_ind == 2)
-			shift = 20;
+		if(health_ind == 2) { shift = 20; }
+
 		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
 				V2i(sfRenderWindow_getSize(state->renderer).x/20*18 - shift,
 					sfRenderWindow_getSize(state->renderer).y/20*17),
@@ -625,14 +710,15 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfFloatRect bounds = sfText_getLocalBounds(lose_text);
 		sfText_setOrigin(lose_text, V2(bounds.left + bounds.width/2,
 						           bounds.top + bounds.height/2));
-		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
-				V2i(sfRenderWindow_getSize(state->renderer).x/2, 
-					sfRenderWindow_getSize(state->renderer).y/10), 
+		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+				V2i(sfRenderWindow_getSize(state->renderer).x/2,
+					sfRenderWindow_getSize(state->renderer).y/10),
 				state->view);
 		sfText_setPosition(lose_text, V2(text_loc.x, text_loc.y));
 		sfText_setFillColor(lose_text, CreateColour(1, 1, 1, 1));
 		sfRenderWindow_drawText(state->renderer, lose_text, NULL);
 		sfText_destroy(lose_text);
+
 		if (JustPressed(controller->accept)) {
 			sfMusic_stop(GetMusic(&state->assets, state->cheer));
 			Level_State *play = RemoveLevelState(state);
@@ -679,6 +765,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 					state->view);
 			sfConvexShape_setPosition(enemy_health,V2(health_loc.x, health_loc.y - 100*i));
 			sfRenderWindow_drawConvexShape(state->renderer, enemy_health, 0);
+
+            sfConvexShape_destroy(enemy_health);
 		}
     }
 
@@ -813,9 +901,9 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 	sfFloatRect bounds = sfText_getLocalBounds(game_over_text);
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
-	v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
-			V2i(sfRenderWindow_getSize(state->renderer).x/2, 
-				sfRenderWindow_getSize(state->renderer).y/9), 
+	v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+			V2i(sfRenderWindow_getSize(state->renderer).x/2,
+				sfRenderWindow_getSize(state->renderer).y/9),
 			state->view);
 	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
 	sfText_setFillColor(game_over_text, CreateColour(1, 1, 1, 1));
@@ -827,9 +915,9 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 	bounds = sfText_getLocalBounds(game_over_text);
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
-	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
-			V2i(sfRenderWindow_getSize(state->renderer).x/2, 
-				sfRenderWindow_getSize(state->renderer).y/5), 
+	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+			V2i(sfRenderWindow_getSize(state->renderer).x/2,
+				sfRenderWindow_getSize(state->renderer).y/5),
 			state->view);
 	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
 	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
@@ -840,9 +928,9 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 	bounds = sfText_getLocalBounds(game_over_text);
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
-	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
-			V2i(sfRenderWindow_getSize(state->renderer).x/3, 
-				sfRenderWindow_getSize(state->renderer).y/2.5f), 
+	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer,
+			V2i(sfRenderWindow_getSize(state->renderer).x/3,
+				sfRenderWindow_getSize(state->renderer).y/2.5f),
 			state->view);
 	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
 	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
@@ -859,10 +947,10 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 
         char *weapon_filenames[] = {
-            0,
+            "sprites/LucyShield.png",
             "sprites/LucyShield.png",
             "sprites/LucySword.png",
-            0
+            "sprites/Spear.png",
         };
 
         for (u32 it = 0; it < WeaponType_Count; ++it) {
