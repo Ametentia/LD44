@@ -83,6 +83,8 @@ struct Controlled_Player {
 
     s32 family_hunger;
 	s32 balance;
+
+    f32 blood_timer;
 };
 
 struct AI_Player {

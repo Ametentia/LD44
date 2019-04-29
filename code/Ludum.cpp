@@ -23,10 +23,26 @@ internal Level_State *RemoveLevelState(Game_State *state) {
 internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_Input *input) {
     sfRenderWindow_clear(state->renderer, CreateColour(1, 0, 0, 1));
 
-    if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
-        Level_State *level = RemoveLevelState(state);
-	    Free(level);
+    Animation *animation = &state->background_animation;
+    UpdateAnimation(animation, input->delta_time);
+    v2 scale = V2(4, 4);
+    for (f32 x = -1920; x < (2 * 1920); x += (scale.x * animation->width)) {
+        for (f32 y = -1080; y < (2 * 1080); y += (scale.y * animation->height)) {
+            RenderAnimation(state, animation, V2(x, y), scale);
+        }
     }
+
+    scale += V2(2, 2);
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->arena), true);
+
+    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setPosition(sprite, V2(960, 540));
+    sfSprite_setScale(sprite, scale);
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+    sfSprite_destroy(sprite);
 }
 
 internal void AddDashLines(Play_State *play, v2 a, v2 b) {
@@ -115,13 +131,24 @@ internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *pl
 
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
     AI_Player *enemy = &play->enemies[aiNum];
+    f32 angle = 0;
+    sfSprite *sprite = sfSprite_create();
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, enemy->texture), true);
+
+    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+
     if (enemy->health <= 0) {
-        //sfSprite_setPosition(enemy->sprite, enemy->position);
-        //sfRenderWindow_drawSprite(state->renderer, enemy->sprite, 0);
+        sfSprite_setPosition(sprite, enemy->position);
+        angle = Atan2(enemy->facing_direction.y, enemy->facing_direction.x);
+
         if(enemy->blood_timer > 0)  {
             AddBlood(play, enemy->position);
             enemy->blood_timer-=dt;
         }
+
+        sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+        sfSprite_destroy(sprite);
         return;
     }
     Controlled_Player *player = &play->players[0];
@@ -131,16 +158,9 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
         return;
     }
 
-    f32 angle = 0;
 	f32 distance = Length(enemy->position - player->position);
 	enemy->attack_wait_time -= dt;
-    sfSprite *sprite = sfSprite_create();
-    sfSprite_setTexture(sprite, GetTexture(&state->assets, enemy->texture), true);
-
-    sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
-    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
-
-	if(enemy->attacking) {
+    if(enemy->attacking) {
         bool attacking = IsAttacking(enemy->weapons);
         if (!attacking) {
 		    enemy->position += enemy->attack_dir * enemy->speed_modifier * 700 * dt;
@@ -165,12 +185,13 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
             Assert(weapon_index == 0 || weapon_index == 1);
 
             Weapon *weapon = &enemy->weapons[weapon_index];
-            if (weapon->type == WeaponType_Shield) {
-                weapon = &enemy->weapons[(weapon_index == 0) ? 1 : 0];
+            if (weapon->type == WeaponType_Shield && IsAttacking(player->weapons)) {
+                AttackWithWeapon(weapon, true);
             }
-
-            // If this fails it means the enemy has two shields which is a bit odd
-            if (weapon->type != WeaponType_Shield) {
+            else {
+                if (weapon->type == WeaponType_Shield) {
+                    weapon = &enemy->weapons[(weapon_index == 0) ? 1 : 0];
+                }
                 bool primary = random(0, 2) == 0;
                 if (primary && weapon->attack_1 == AttackType_None) {
                     primary = false;
@@ -210,10 +231,10 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
             }
 
             enemy->attacking = false;
-            enemy->attack_wait_time = random(1,4);
+            enemy->attack_wait_time = random(1,2);
         }
 
-        bool should_block = random(0, 32) > 22;
+        bool should_block = true; // random(0, 32) > 22;
         if (!IsAttacking(enemy->weapons) && should_block) {
             // Should be close enough to attack but guess
             if (IsAttacking(player->weapons)) {
@@ -478,8 +499,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         play->arena = sfCircleShape_create();
         sfCircleShape_setRadius(play->arena, 1000);
         sfCircleShape_setOrigin(play->arena, V2(1000, 1000));
-		Asset_Handle t = LoadTexture(&state->assets, "sprites/Floor.png");
-		sfCircleShape_setTexture(play->arena, GetTexture(&state->assets, t), false);
+		sfCircleShape_setTexture(play->arena, GetTexture(&state->assets, state->arena), false);
         sfCircleShape_setPointCount(play->arena, 45);
         sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
         sfCircleShape_setPosition(play->arena, V2(960, 540));
@@ -490,7 +510,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         Weapon weapons[2] = {};
         weapons[0] = PrefabWeapon(state, WeaponType_Spear);
         weapons[1] = PrefabWeapon(state, WeaponType_Shield);
-        state->music_num = random(0,2);
+        state->music_num = random(0, 2);
         printf("%d\n", state->music_num);
 		sfMusic_play(GetMusic(&state->assets, state->cheer));
 		sfMusic_play(GetMusic(&state->assets, state->fight_music[state->music_num]));
@@ -522,9 +542,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             enemy->texture = state->enemy_textures[0];
             enemy->weapons[0] = PrefabWeapon(state,
                 (Weapon_Type)random(state->battle_count > 5 ? 2:0,
-                (s32)Clamp(state->battle_count, 1, 4))
-            );
-            enemy->weapons[1] = PrefabWeapon(state, (Weapon_Type)(state->battle_count > 7 ? 1:0));
+                (s32)Clamp(state->battle_count, 1, 4)), true);
+            enemy->weapons[1] = PrefabWeapon(state,
+                    (Weapon_Type)(state->battle_count > 7 ? 1:0), true);
             enemy->blood_timer = 3;
 
             enemy->strength_modifier = 1;
@@ -632,7 +652,9 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     sfView_setCenter(state->view, player->position + camera_offset);
     sfRenderWindow_setView(state->renderer, state->view);
 
-    player->facing_direction = Normalise(input->unprojected_mouse - player->position);
+    if (player->health > 0) {
+        player->facing_direction = Normalise(input->unprojected_mouse - player->position);
+    }
 
     Animation *animation = &state->background_animation;
     UpdateAnimation(animation, input->delta_time);
@@ -645,9 +667,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 
     sfRenderWindow_drawCircleShape(state->renderer, play->arena,   0);
 
-    UpdateRenderThrownWeapons(state, play, input->delta_time);
-
 	UpdateMovingBlood(state, play, input);
+    UpdateRenderThrownWeapons(state, play, input->delta_time);
     UpdateRenderPlayer(state, play, input, player);
 
 
@@ -712,8 +733,11 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfRenderWindow_mapPixelToCoords(state->renderer,
             V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
 
+        player->blood_timer -= dt;
+        if (player->blood_timer > 0) {
+            AddBlood(play, player->position);
+        }
 
-        AddBlood(play, player->position);
 		sfText *lose_text = sfText_create();
 		sfText_setString(lose_text, "You Have Died.");
 		sfText_setCharacterSize(lose_text, 120);
@@ -1110,6 +1134,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         state->ai_speed = gameplay_init_enemy_speed;
         state->battle_count = 0;
 
+        // CreateLevelState(state, LevelType_Menu);
         Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 
         char *weapon_filenames[] = {
@@ -1148,6 +1173,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->shop_items[2] = LoadTexture(&state->assets, "sprites/Meds.png");
 		state->no_buy = LoadSound(&state->assets, "sounds/no_go2.wav");
 		state->buy = LoadSound(&state->assets, "sounds/buy.wav");
+
+		state->arena = LoadTexture(&state->assets, "sprites/Floor.png");
 
         state->swipe_sounds[0] = LoadSound(&state->assets, "sounds/swipe1.wav");
         state->swipe_sounds[1] = LoadSound(&state->assets, "sounds/swipe2.wav");

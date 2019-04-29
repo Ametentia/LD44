@@ -289,7 +289,7 @@ internal void InitialisePlayer(Game_State *state, Controlled_Player *player, v2 
     player->position = position;
     player->facing_direction = V2(1, 0);
 
-    // @Todo: Textures
+    player->blood_timer = 3;
 
     player->hitbox_radius = 30;
 
@@ -350,24 +350,27 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
     Assert(controller->is_connected);
 
     /// Check input for movement
+    if (player->health > 0) {
     f32 player_speed = 900 * player->speed_modifier;
-    v2 move_direction = V2(0, 0);
-    if (IsPressed(controller->move_up)) {
-        move_direction.y = -1;
-    }
-    else if (IsPressed(controller->move_down)) {
-        move_direction.y = 1;
+        v2 move_direction = V2(0, 0);
+        if (IsPressed(controller->move_up)) {
+            move_direction.y = -1;
+        }
+        else if (IsPressed(controller->move_down)) {
+            move_direction.y = 1;
+        }
+
+        if (IsPressed(controller->move_left)) {
+            move_direction.x = -1;
+        }
+        else if (IsPressed(controller->move_right)) {
+            move_direction.x = 1;
+        }
+
+        move_direction = Normalise(move_direction);
+        player->position += dt * player_speed * move_direction;
     }
 
-    if (IsPressed(controller->move_left)) {
-        move_direction.x = -1;
-    }
-    else if (IsPressed(controller->move_right)) {
-        move_direction.x = 1;
-    }
-
-    move_direction = Normalise(move_direction);
-    player->position += dt * player_speed * move_direction;
 
     /// Keep inside the arena
     // @Speed: Inefficient
@@ -452,63 +455,65 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
 
     /// Check input for attacks
     // @Todo: This needs to be generalised so we can use if for AI
-    if (!IsBlocking(player->weapons, player->weapon_count)) {
-        if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
-            Weapon *weapon = &player->weapons[0];
-            if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
-                AttackWithWeapon(weapon, true);
-            }
-        }
-        else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
-            Weapon *weapon = &player->weapons[0];
-            if (weapon->can_attack && (weapon->attack_2 != AttackType_None)) {
-                // Remove the weapon that is thrown
-                if (weapon->attack_2 == AttackType_Throw) {
-                    Thrown_Weapon *thrown = cast(Thrown_Weapon *) Alloc(sizeof(Thrown_Weapon));
-                    thrown->weapon = *weapon;
-                    AttackWithWeapon(&thrown->weapon, false);
-                    thrown->prev = 0;
-                    thrown->next = play->thrown_weapons;
-                    if (play->thrown_weapons) { play->thrown_weapons->prev = thrown; }
-                    play->thrown_weapons = thrown;
-
-                    v2 offset = 30 * Normalise(Perp(player->facing_direction));
-                    v2 hitbox_correction = GetWeaponHitboxOffset(weapon, true,
-                                player->facing_direction);
-
-                    thrown->strength = player->strength_modifier;
-                    thrown->position = (player->position + (40 * player->facing_direction))
-                        + offset + hitbox_correction;
-                    thrown->velocity = 550 * player->facing_direction;
-                    thrown->stopped = false;
-                    // To stop the player from getting hit by their own thrown weapon
-                    thrown->from_player = true;
-
-                    RemoveWeapon(state, player->weapons, 0);
+    if (player->health > 0) {
+        if (!IsBlocking(player->weapons, player->weapon_count)) {
+            if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+                Weapon *weapon = &player->weapons[0];
+                if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
+                    AttackWithWeapon(weapon, true);
                 }
-
-                // This means we can use the secondary attack
-                AttackWithWeapon(weapon, false);
             }
-            else {
-                // Check the second weapon as it might be able to attack
-                if (weapon->attack_2 == AttackType_None) {
-                    weapon = &player->weapons[1];
-                    if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
-                        AttackWithWeapon(weapon, true);
+            else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
+                Weapon *weapon = &player->weapons[0];
+                if (weapon->can_attack && (weapon->attack_2 != AttackType_None)) {
+                    // Remove the weapon that is thrown
+                    if (weapon->attack_2 == AttackType_Throw) {
+                        Thrown_Weapon *thrown = cast(Thrown_Weapon *) Alloc(sizeof(Thrown_Weapon));
+                        thrown->weapon = *weapon;
+                        AttackWithWeapon(&thrown->weapon, false);
+                        thrown->prev = 0;
+                        thrown->next = play->thrown_weapons;
+                        if (play->thrown_weapons) { play->thrown_weapons->prev = thrown; }
+                        play->thrown_weapons = thrown;
+
+                        v2 offset = 30 * Normalise(Perp(player->facing_direction));
+                        v2 hitbox_correction = GetWeaponHitboxOffset(weapon, true,
+                                    player->facing_direction);
+
+                        thrown->strength = player->strength_modifier;
+                        thrown->position = (player->position + (40 * player->facing_direction))
+                            + offset + hitbox_correction;
+                        thrown->velocity = 550 * player->facing_direction;
+                        thrown->stopped = false;
+                        // To stop the player from getting hit by their own thrown weapon
+                        thrown->from_player = true;
+
+                        RemoveWeapon(state, player->weapons, 0);
+                    }
+
+                    // This means we can use the secondary attack
+                    AttackWithWeapon(weapon, false);
+                }
+                else {
+                    // Check the second weapon as it might be able to attack
+                    if (weapon->attack_2 == AttackType_None) {
+                        weapon = &player->weapons[1];
+                        if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
+                            AttackWithWeapon(weapon, true);
+                        }
                     }
                 }
             }
-        }
-        else if (JustPressed(controller->block)) {
-            Weapon *weapon = &player->weapons[0];
-            if (weapon->type == WeaponType_Shield) {
-                AttackWithWeapon(weapon, true);
-            }
-            else {
-                weapon = &player->weapons[1];
+            else if (JustPressed(controller->block)) {
+                Weapon *weapon = &player->weapons[0];
                 if (weapon->type == WeaponType_Shield) {
                     AttackWithWeapon(weapon, true);
+                }
+                else {
+                    weapon = &player->weapons[1];
+                    if (weapon->type == WeaponType_Shield) {
+                        AttackWithWeapon(weapon, true);
+                    }
                 }
             }
         }
