@@ -39,7 +39,7 @@ internal Weapon PrefabWeapon(Game_State *state, Weapon_Type type) {
 
             result.attack_2 = AttackType_Throw;
             result.attack_time_2 = 0.3;
-            result.attack_damage_2 = 10;
+            result.attack_damage_2 = 15;
         }
         break;
 
@@ -67,6 +67,10 @@ internal v2 GetWeaponHitboxOffset(Weapon *weapon, bool left, v2 facing_direction
             result = left ? (10 * facing_direction) : -(10 * facing_direction);
         }
         break;
+        case WeaponType_Spear: {
+            result = left ? (55 * facing_direction) : -(55 * facing_direction);
+        }
+        break;
 
         // @Todo: Spear will need hitbox correction
     }
@@ -77,6 +81,49 @@ internal v2 GetWeaponHitboxOffset(Weapon *weapon, bool left, v2 facing_direction
 inline f32 GetWeaponDamage(Weapon *weapon) {
     f32 result = weapon->attack_damage;
     return result;
+}
+
+internal void UpdateRenderThrownWeapons(Game_State *state, Play_State *play, f32 dt) {
+    for (Thrown_Weapon *it = play->thrown_weapons; it; it = it->next) {
+        it->position += (dt * it->velocity);
+        v2 norm_vel = Normalise(it->velocity);
+        it->velocity -= (dt * 230 * norm_vel); // Should be going in the opposite dir
+        if (!it->stopped && Dot(it->velocity, it->velocity) < 100) {
+            it->velocity = V2(0, 0);
+            it->stopped = true;
+
+            printf("[Info][Thrown Weapon] Thrown weapon has stopped moving\n");
+        }
+
+        f32 angle = (PI32 / 2.0) + Atan2(norm_vel.y, norm_vel.x);
+
+        sfSprite *sprite = sfSprite_create();
+        sfSprite_setTexture(sprite, GetTexture(&state->assets, it->weapon.texture_handle), true);
+
+        sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
+        sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+
+        sfSprite_setRotation(sprite, Degrees(angle));
+        sfSprite_setPosition(sprite, it->position);
+        sfSprite_setScale(sprite, V2(2, 2));
+
+        sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+        sfSprite_destroy(sprite);
+
+        sfCircleShape *hitbox = sfCircleShape_create();
+        sfCircleShape_setRadius(hitbox, 20);
+        sfCircleShape_setOrigin(hitbox, V2(20, 20));
+        sfCircleShape_setFillColor(hitbox, sfTransparent);
+        sfCircleShape_setOutlineThickness(hitbox, 2);
+        sfCircleShape_setOutlineColor(hitbox, sfMagenta);
+
+        v2 hitbox_correction = GetWeaponHitboxOffset(&it->weapon, true, norm_vel);
+        sfCircleShape_setPosition(hitbox, it->position + hitbox_correction);
+
+        sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
+
+        sfCircleShape_destroy(hitbox);
+    }
 }
 
 // @Note: Returns the positional offset that the weapon should be rendered at
@@ -227,7 +274,15 @@ internal void AttackWithWeapon(Weapon *weapon, bool primary_attack) {
     }
 }
 
-internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlled_Player *player) {
+internal void RemoveWeapon(Game_State *state, Weapon *weapons, u32 index) {
+    Assert(index < 2);
+
+    weapons[index] = PrefabWeapon(state, WeaponType_Fists);
+}
+
+internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
+        Game_Input *input, Controlled_Player *player)
+{
     f32 dt = input->delta_time;
     Game_Controller *controller = GameGetController(input, 0);
     Assert(controller->is_connected);
@@ -254,10 +309,71 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
 
     /// Keep inside the arena
     // @Speed: Inefficient
+#if 0
     v2 dir = Normalise(V2(960, 540) - player->position);
     f32 dist = Length(V2(960, 540) - player->position);
     if ((player->hitbox_radius + dist) > 1000) {
         player->position += (dist - (1000 - player->hitbox_radius)) * dir;
+    }
+#endif
+
+    Thrown_Weapon *thrown_weapon = play->thrown_weapons;
+    bool first_thrown_weapon = true; // @Hack: To clear the top of the linked list
+    while (thrown_weapon) {
+        Thrown_Weapon *remove = 0;
+        v2 hitbox_correction = GetWeaponHitboxOffset(&thrown_weapon->weapon,
+                true, Normalise(thrown_weapon->velocity));
+
+        if (CircleIntersection(player->position, player->hitbox_radius,
+                    thrown_weapon->position + hitbox_correction, 20))
+        {
+            if (!thrown_weapon->stopped && !thrown_weapon->weapon.has_hit) {
+                if (!thrown_weapon->from_player) {
+                    // @Todo: Do damage to the player!
+                    f32 defence_modifier = 1;
+                    if (IsBlocking(player->weapons, player->weapon_count)) {
+                        Weapon *weapon = 0;
+                        for (u32 it = 0; it < player->weapon_count; ++it) {
+                            weapon = &player->weapons[it];
+                            if (weapon->type == WeaponType_Shield) { break; }
+                        }
+
+                        Assert(weapon);
+
+                        defence_modifier = GetWeaponDamage(weapon);
+                    }
+
+                    f32 damage = thrown_weapon->strength *
+                        GetWeaponDamage(&thrown_weapon->weapon);
+
+                    player->health -= (defence_modifier * damage);
+
+                    AddBlood(play, player->position, Normalise(thrown_weapon->velocity));
+
+                    thrown_weapon->weapon.has_hit = true;
+                }
+            }
+            else if (thrown_weapon->stopped) {
+                // Pick up weapon that is on the ground
+                if (player->weapons[0].type == WeaponType_Fists) {
+                    player->weapons[0] = thrown_weapon->weapon;
+                    remove = thrown_weapon;
+                    thrown_weapon = thrown_weapon->next;
+
+                    // Unlink from list
+                    if (remove->prev) { remove->prev->next = remove->next; }
+                    if (remove->next) { remove->next->prev = remove->prev; }
+
+                    if (first_thrown_weapon) {
+                        play->thrown_weapons = thrown_weapon;
+                    }
+                }
+            }
+        }
+
+        first_thrown_weapon = false;
+        if (!remove) { thrown_weapon = thrown_weapon->next; }
+        else { Free(remove); }
     }
 
     /// Check input for attacks
@@ -272,14 +388,41 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
         else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
             Weapon *weapon = &player->weapons[0];
             if (weapon->can_attack && (weapon->attack_2 != AttackType_None)) {
+                // Remove the weapon that is thrown
+                if (weapon->attack_2 == AttackType_Throw) {
+                    Thrown_Weapon *thrown = cast(Thrown_Weapon *) Alloc(sizeof(Thrown_Weapon));
+                    thrown->weapon = *weapon;
+                    AttackWithWeapon(&thrown->weapon, false);
+                    thrown->prev = 0;
+                    thrown->next = play->thrown_weapons;
+                    if (play->thrown_weapons) { play->thrown_weapons->prev = thrown; }
+                    play->thrown_weapons = thrown;
+
+                    v2 offset = 30 * Normalise(Perp(player->facing_direction));
+                    v2 hitbox_correction = GetWeaponHitboxOffset(weapon, true,
+                                player->facing_direction);
+
+                    thrown->strength = player->strength_modifier;
+                    thrown->position = (player->position + (40 * player->facing_direction))
+                        + offset + hitbox_correction;
+                    thrown->velocity = 550 * player->facing_direction;
+                    thrown->stopped = false;
+                    // To stop the player from getting hit by their own thrown weapon
+                    thrown->from_player = true;
+
+                    RemoveWeapon(state, player->weapons, 0);
+                }
+
                 // This means we can use the secondary attack
                 AttackWithWeapon(weapon, false);
             }
             else {
                 // Check the second weapon as it might be able to attack
-                weapon = &player->weapons[1];
-                if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
-                    AttackWithWeapon(weapon, true);
+                if (weapon->attack_2 == AttackType_None) {
+                    weapon = &player->weapons[1];
+                    if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
+                        AttackWithWeapon(weapon, true);
+                    }
                 }
             }
         }
@@ -315,7 +458,6 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
     // always technically have 2 weapons
     for (u32 it = 0; it < player->weapon_count; ++it) {
         Weapon *weapon = &player->weapons[it];
-        // @Temp: Just to see if stuff works
         sfSprite *sprite = sfSprite_create();
         sfTexture *texture = GetTexture(&state->assets, state->weapon_textures[weapon->type]);
         sfSprite_setTexture(sprite, texture, true);
@@ -337,6 +479,9 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
         sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
         if (weapon->type == WeaponType_Shield) {
             sfSprite_setScale(sprite, V2(1.66, 1.58));
+        }
+        else if (weapon->type == WeaponType_Spear) {
+            sfSprite_setScale(sprite, V2(2, 2));
         }
         else {
             sfSprite_setScale(sprite, V2(2.3, 2.3));

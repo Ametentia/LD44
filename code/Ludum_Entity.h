@@ -50,6 +50,19 @@ struct Weapon {
     f32 attack_time_2;
 };
 
+struct Thrown_Weapon {
+    v2 position;
+    v2 velocity;
+    bool stopped;
+    bool from_player;
+
+    f32 strength;
+
+    Weapon weapon;
+    Thrown_Weapon *next;
+    Thrown_Weapon *prev;
+};
+
 struct Controlled_Player {
     v2 position;
     v2 facing_direction;
@@ -64,7 +77,6 @@ struct Controlled_Player {
 
     f32 health; // Probably should be float
     f32 max_health;
-    f32 invuln_time;
 
     f32 speed_modifier;
     f32 strength_modifier;
@@ -80,7 +92,6 @@ struct AI_Player {
 	Asset_Handle texture; // What is this for
 
     v2 facing_direction;
-    sfConvexShape *shape;
 
 	f32 health;
 

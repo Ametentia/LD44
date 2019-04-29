@@ -33,6 +33,8 @@ struct Play_State {
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
 	bool won = false;
+
+    Thrown_Weapon *thrown_weapons;
 };
 
 struct Logo_State {
@@ -106,5 +108,6 @@ struct Game_State {
 };
 
 internal void AddBlood(Play_State *play, AI_Player *ai, Controlled_Player *player);
+internal void AddBlood(Play_State *play, v2 position, v2 direction);
 
 #endif  // LUDUM_H_
