@@ -122,7 +122,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
             AddBlood(play, enemy->position);
             enemy->blood_timer-=dt;
         }
-        return; 
+        return;
     }
     Controlled_Player *player = &play->players[0];
     if (player->health<=0) {
@@ -511,16 +511,16 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        play->ai_count = gameplay_enemy_count;
+        play->ai_count = state->ai_count;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
-            enemy->speed_modifier = gameplay_enemy_speed;
+            enemy->speed_modifier = state->ai_speed;
             enemy->hitbox_radius = 25;
             enemy->position.x = random(-340, 1300);
             enemy->position.y = random(-340, 1300);
             enemy->weapon_count = 2; // @Todo: This needs to go, it is error prone
             enemy->texture = state->enemy_textures[0];
-            enemy->weapons[0] = PrefabWeapon(state, 
+            enemy->weapons[0] = PrefabWeapon(state,
                 (Weapon_Type)random(state->battle_count > 5 ? 2:0,
                 (s32)Clamp(state->battle_count, 1, 3))
             );
@@ -553,7 +553,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		Level_State *current_state = state->current_state;
         Payment_State *payment = &current_state->payment;
 		payment->heal_bill = heal;
-		payment->balence += pay + (heal == 0 ? 40*state->ai_count : 0);
+		payment->balence += pay + (heal == 0 ? 40 * state->ai_count : 0);
 		payment->family_hunger++;
         state->battle_count++;
 		payment->family_heat++;
@@ -840,7 +840,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
     sfText_setFont(difficulty, GetFont(&state->assets, state->font));
     sfText_setFillColor(difficulty, CreateColour(1, 1, 1, 1));
     char *difficulties[] = {
-        "Easy", "Medium", "Hard" 
+        "Easy", "Medium", "Hard"
     };
     bool selected = false;
     for(int i = 0 ; i < 3; i ++) {
@@ -874,9 +874,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
         if(JustPressed(input->mouse_buttons[MouseButton_Left])) {
             input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
                 V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
-            bool x_correct = input->unprojected_mouse.x > bounds.left && 
+            bool x_correct = input->unprojected_mouse.x > bounds.left &&
                 input->unprojected_mouse.x <  + bounds.left + bounds.width;
-            bool y_correct = input->unprojected_mouse.y > bounds.top  && 
+            bool y_correct = input->unprojected_mouse.y > bounds.top  &&
                 input->unprojected_mouse.y < bounds.top + bounds.height;
             if(x_correct && y_correct) {
                 selected = true;
@@ -922,9 +922,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
             sfFloatRect bounds = sfText_getLocalBounds(items);
             input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
                 V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
-            bool x_correct = input->unprojected_mouse.x > 690 + 310*i + (i==2?-15:0) && 
+            bool x_correct = input->unprojected_mouse.x > 690 + 310*i + (i==2?-15:0) &&
                 input->unprojected_mouse.x <  + 690 + 310*i + (i==2?-15:0) + bounds.left + bounds.width;
-            bool y_correct = input->unprojected_mouse.y > 140  && 
+            bool y_correct = input->unprojected_mouse.y > 140  &&
                 input->unprojected_mouse.y < 140 + bounds.top + bounds.height;
             if(x_correct && y_correct) {
                 switch(i) {
@@ -1105,6 +1105,10 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
     if (!state->initialised) {
         InitialiseAssetManager(&state->assets, 100); // @Note: Can be increased if need be
+
+        state->ai_count = gameplay_init_enemy_count;
+        state->ai_speed = gameplay_init_enemy_speed;
+        state->battle_count = 0;
 
         Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 

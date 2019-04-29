@@ -90,6 +90,10 @@ struct Game_State {
     sfView *view;
     Asset_Manager assets;
 
+    s32 battle_count;
+    s32 ai_count;
+    f32 ai_speed;
+
     Asset_Handle weapon_textures[WeaponType_Count + 1];
     Asset_Handle logo_texture;
     Asset_Handle player_textures[3];

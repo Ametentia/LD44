@@ -6,7 +6,7 @@ global const u32  window_default_width  = 1920;
 global const u32  window_default_height = 1080;
 global const bool window_fullscreen = true;
 
-global const u32 gameplay_enemy_count = 10;
-global const f32 gameplay_enemy_speed = 1;
+global const u32 gameplay_init_enemy_count = 1;
+global const f32 gameplay_init_enemy_speed = 1;
 
 #endif  // LUDUM_CONFIG_H_
