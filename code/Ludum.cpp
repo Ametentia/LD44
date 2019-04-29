@@ -525,7 +525,6 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         weapons[0] = PrefabWeapon(state, (Weapon_Type)state->player_weapon[0]);
         weapons[1] = PrefabWeapon(state, (Weapon_Type)state->player_weapon[1]);
         state->music_num = random(0,2);
-        printf("%d\n", state->music_num);
 		sfMusic_play(GetMusic(&state->assets, state->cheer));
 		sfMusic_play(GetMusic(&state->assets, state->fight_music[state->music_num]));
 
@@ -582,7 +581,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             +(state->ai_speed < 1 ? 0 : 20*state->ai_count);
 		int heal = (100-player->health);
 		sfMusic_stop(GetMusic(&state->assets, state->cheer));
-		sfMusic_stop(GetMusic(&state->assets, state->fight_music[state->music_num]));
+		sfMusic_stop(GetMusic(&state->assets, state->fight_music[0]));
+		sfMusic_stop(GetMusic(&state->assets, state->fight_music[1]));
 		Level_State *level = RemoveLevelState(state);
 		Free(level);
 
@@ -820,6 +820,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             }
 
 			sfMusic_stop(GetMusic(&state->assets, state->cheer));
+		    sfMusic_stop(GetMusic(&state->assets, state->fight_music[state->music_num]));
 			Level_State *play = RemoveLevelState(state);
 			Free(play);
 			Level_State *payment = RemoveLevelState(state);
@@ -1328,6 +1329,10 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 
 
 	sfText_destroy(game_over_text);
+    Game_Controller *controller = GameGetController(input, 0);
+	if(JustPressed(controller->accept)) {
+        free(RemoveLevelState(state));
+    }
 }
 
 
@@ -1340,6 +1345,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         state->battle_count = 0;
 
         CreateLevelState(state, LevelType_Menu);
+        CreateLevelState(state, LevelType_Logo);
         // Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 
         char *weapon_filenames[] = {
@@ -1372,6 +1378,8 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->health_indicators[4] = LoadTexture(&state->assets, "sprites/EnemyHealthMedium.png");
 		state->health_indicators[5] = LoadTexture(&state->assets, "sprites/EnemyHealthLow.png");
         state->health_indicators[6] = LoadTexture(&state->assets, "sprites/HealthEmpty.png");
+
+        state->cape = LoadTexture(&state->assets, "sprites/LucyCape.png");
 
 		state->shop_back = LoadTexture(&state->assets, "sprites/shop.png");
 		state->shop_items[0] = LoadTexture(&state->assets, "sprites/Apple.png");

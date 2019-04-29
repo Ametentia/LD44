@@ -329,8 +329,8 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
     f32 dt = input->delta_time;
     Game_Controller *controller = GameGetController(input, 0);
     Assert(controller->is_connected);
-
     /// Check input for movement
+    f32 move_cape = 1;
     if (player->health > 0 && state->countdown < 0) {
         f32 player_speed = 900 * player->speed_modifier;
         v2 move_direction = V2(0, 0);
@@ -350,6 +350,8 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
 
         move_direction = Normalise(move_direction);
         player->position += dt * player_speed * move_direction;
+        if(move_direction.x != 0 || move_direction.y != 0)
+            move_cape = (-(int)(state->countdown*3)%2==0?-1:1);
     }
 
 
@@ -499,16 +501,23 @@ internal void UpdateRenderPlayer(Game_State *state, Play_State *play,
             }
         }
     }
-
     /// Render player
     sfSprite *sprite = sfSprite_create();
-    sfSprite_setTexture(sprite, GetTexture(&state->assets, player->texture), true);
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->cape), true);
     sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
     sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
-    sfSprite_setPosition(sprite, player->position);
+    sfSprite_setScale(sprite, V2(2 *move_cape ,2));
+    sfSprite_setPosition(sprite, player->position - (20*player->facing_direction));
     f32 angle = (PI32 / 2.0) + Atan2(player->facing_direction.y, player->facing_direction.x);
     sfSprite_setRotation(sprite, Degrees(angle));
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
 
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, player->texture), true);
+    sfSprite_setScale(sprite, V2(1,1));
+    bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setPosition(sprite, player->position);
+    sfSprite_setRotation(sprite, Degrees(angle));
     sfRenderWindow_drawSprite(state->renderer, sprite, 0);
 
     sfSprite_destroy(sprite);

@@ -103,6 +103,7 @@ struct Game_State {
 
     Asset_Handle arena;
     Asset_Handle title;
+    Asset_Handle cape;
 
     Asset_Handle weapon_textures[WeaponType_Count + 1];
     Asset_Handle logo_texture;
