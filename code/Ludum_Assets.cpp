@@ -99,7 +99,7 @@ internal sfMusic *GetMusic(Asset_Manager *manager, Asset_Handle handle) {
     if (handle.value == 0) { return 0; }
 
     Asset *asset = GetAsset(manager, handle.value);
-    Assert(asset->type == AssetType_Sound && asset->loaded);
+    Assert(asset->type == AssetType_Music && asset->loaded);
 
     sfMusic *result = asset->music;
     return result;

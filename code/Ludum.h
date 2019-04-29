@@ -27,13 +27,14 @@ struct Play_State {
 	AI_Player enemies[10]; // 10 as a soft max for now
 	u8 ai_count;
     sfCircleShape *arena;
-	Moving_Blood active_blood[75];
+	Moving_Blood active_blood[100];
 	v2 stale_blood[500];
 	u32 stale_blood_count;
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
 	bool won = false;
 };
+
 struct Logo_State {
 	bool initialised = false;
 	f32 delta_rate;
@@ -49,6 +50,13 @@ struct Payment_State {
 	bool family_ill;
 	s32 heal_bill;
 	s32 balence;
+	s32 gameover_worth;
+};
+
+struct Game_Over_State {
+	char* game_over_message;
+	char* game_over_tag_line;
+	char* game_over_stats;
 };
 
 enum Level_Type {
@@ -57,6 +65,7 @@ enum Level_Type {
     LevelType_Menu,
 	LevelType_Logo,
 	LevelType_Payment,
+	LevelType_Game_Over,
 };
 
 struct Level_State {
@@ -66,6 +75,7 @@ struct Level_State {
         Menu_State menu;
 		Logo_State logo;
 		Payment_State payment;
+		Game_Over_State game_over;
     };
 
     Level_State *next;
@@ -76,6 +86,8 @@ struct Game_State {
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
+	s32 ai_count = 1;
+	f32 ai_speed = 0.8f;
 
     Asset_Handle weapon_textures[WeaponType_Count];
     Asset_Handle logo_texture;
@@ -84,6 +96,9 @@ struct Game_State {
 
 	Asset_Handle character;
 	Asset_Handle health_indicators[6];
+	Asset_Handle cheer;
+	Asset_Handle short_cheer[3];
+	sfSound *sound;
 
     Level_State *current_state;
 };
