@@ -22,6 +22,7 @@ struct Menu_State {
 };
 
 struct Play_State {
+	bool initialised = false;
     Controlled_Player players[4]; // Only one player supported for now!
 	AI_Player enemies[10]; // 10 as a soft max for now
 	u8 ai_count;
@@ -31,6 +32,7 @@ struct Play_State {
 	u32 stale_blood_count;
 	u8 moving_blood_count;
 	sfConvexShape *blood_shape;
+	bool won = false;
 };
 
 struct Logo_State {
@@ -38,24 +40,16 @@ struct Logo_State {
 	f32 delta_rate;
     f32 rate;
     f32 opacity;
-
-    Asset_Handle texture;
 };
 
-struct Dialog_State {
-	bool initialised = false;
-	char dialog[30][128];
-	Asset_Handle characters[4];
-	Asset_Handle font;
-	u8 line_count;
-	u8 current_line = 0;
-};
 
 struct Payment_State {
-	Asset_Handle background;
-	Asset_Handle character;
-	Asset_Handle font;
 	bool initialised = false;
+    s32 family_hunger;
+    s32 family_heat;
+	bool family_ill;
+	s32 heal_bill;
+	s32 balence;
 };
 
 enum Level_Type {
@@ -64,7 +58,6 @@ enum Level_Type {
     LevelType_Menu,
 	LevelType_Logo,
 	LevelType_Payment,
-    LevelType_Dialog
 };
 
 struct Level_State {
@@ -73,7 +66,6 @@ struct Level_State {
         Play_State play;
         Menu_State menu;
 		Logo_State logo;
-		Dialog_State dialog;
 		Payment_State payment;
     };
 
@@ -87,11 +79,18 @@ struct Game_State {
     Asset_Manager assets;
 
     Asset_Handle weapon_textures[WeaponType_Count];
+    Asset_Handle logo_texture;
     Asset_Handle player_textures[3];
+	Asset_Handle font;
+
+	Asset_Handle character;
+	Asset_Handle health_indicators[6];
 
     Level_State *current_state;
 
     Animation background_animation;
 };
+
+internal void AddBlood(Play_State *play, AI_Player *ai, Controlled_Player *player);
 
 #endif  // LUDUM_H_

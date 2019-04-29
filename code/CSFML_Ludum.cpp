@@ -95,6 +95,11 @@ internal void CSFMLProcessEvents(Game_Input *current, Game_Input *prev) {
                                 prev_keyboard->accept, pressed);
                     }
                     break;
+                    case sfKeyLShift: {
+                        CSFMLProcessButtonEvent(&current_keyboard->block,
+                                prev_keyboard->block, pressed);
+                    }
+                    break;
                 }
             }
             break;

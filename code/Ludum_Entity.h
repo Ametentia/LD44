@@ -5,9 +5,6 @@ struct Player_Stats {
     f32 health; // This is the current health and _not_ max health
     f32 strength;
     f32 speed;
-
-    s32 family_hunger;
-    s32 balance;
 };
 
 enum Attack_Type {
@@ -34,18 +31,22 @@ struct Weapon {
 
     Weapon_Type type;
 
-    // Copied information when one of the weapons is used
+    bool has_hit;
     bool can_attack;
+
+    // Copied information when one of the weapons is used
     Attack_Type attacking_type;
     f32 attacking_time;
     f32 attack_offset;
+    f32 attack_damage;
 
-    f32 attack_or_defence_modifier;
 
     Attack_Type attack_1;
+    f32 attack_damage_1;
     f32 attack_time_1;
 
     Attack_Type attack_2;
+    f32 attack_damage_2;
     f32 attack_time_2;
 };
 
@@ -58,7 +59,7 @@ struct Controlled_Player {
 
     f32 hitbox_radius; // Circle collision detection
 
-    u32 weapon_count; // Should always be at least 1 for fists
+    u32 weapon_count; // @Todo: Remove this, it isn't really needed
     Weapon weapons[2];
 
     f32 health; // Probably should be float
@@ -76,25 +77,35 @@ struct AI_Player {
 	v2 position;
 	f32 hitbox_radius;
 
+	Asset_Handle texture; // What is this for
+
     v2 facing_direction;
     sfConvexShape *shape;
 
 	f32 health;
 
-    bool has_shield;
-    bool has_stabby_weapon;
-	Asset_Handle texture;
+    u32 weapon_count;
+    Weapon weapons[2];
+
+    v2 attack_dir;
+	v2 attack_start;
 
     f32 speed_modifier;
-    f32 attack_modifier;
+    f32 strength_modifier;
 	f32 attack_wait_time;
-	v2 attack_dir;
-	v2 attack_start;
+
+    f32 block_timer;
+
+#if 0
+    bool has_shield;
+    bool has_stabby_weapon;
+
 
     bool can_attack;
     Attack_Type attack_type;
     f32 attack_time;
     f32 attack_offset;
+#endif
 
 	s8 rotate_dir;
 	bool circling = false;

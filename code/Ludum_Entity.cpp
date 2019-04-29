@@ -4,37 +4,42 @@ internal Weapon PrefabWeapon(Game_State *state, Weapon_Type type) {
     result.type = type;
     result.can_attack = true;
     result.texture_handle = state->weapon_textures[type];
+
     switch (type) {
         case WeaponType_Fists: {
-            result.attack_or_defence_modifier = 4;
             result.attack_1 = AttackType_Stab;
             result.attack_time_1 = 0.2;
+            result.attack_damage_1 = 4;
 
             result.attack_2 = AttackType_None;
         }
         break;
         case WeaponType_Shield: {
             result.attack_1 = AttackType_Block;
+            result.attack_damage_1 = 0.1;
+            result.attack_time_1 = 0;
+
             result.attack_2 = AttackType_None;
-            result.attack_or_defence_modifier = 10;
         }
         break;
         case WeaponType_Sword: {
-            result.attack_or_defence_modifier = 15;
             result.attack_1 = AttackType_Stab;
             result.attack_time_1 = 0.1;
+            result.attack_damage_1 = 10;
 
             result.attack_2 = AttackType_Slash;
-            result.attack_time_2 = 0.4;
+            result.attack_damage_2 = 20;
+            result.attack_time_2 = 0.2;
         }
         break;
         case WeaponType_Spear: {
-            result.attack_or_defence_modifier = 15;
             result.attack_1 = AttackType_Stab;
             result.attack_time_1 = 0.1;
+            result.attack_damage_1 = 10;
 
             result.attack_2 = AttackType_Throw;
             result.attack_time_2 = 0.3;
+            result.attack_damage_2 = 10;
         }
         break;
 
@@ -50,26 +55,50 @@ internal Player_Stats GetDefaultPlayerStats() {
     result.speed = 1;
     result.strength = 1;
 
-    result.family_hunger = 2;
-    result.balance = 10;
+    return result;
+}
 
+internal v2 GetWeaponHitboxOffset(Weapon *weapon, bool left, v2 facing_direction) {
+    v2 result = {};
+    switch (weapon->type) {
+        case WeaponType_Sword: {
+            // @Note: This offsets the hitbox so it is more on the blade of the sword rather
+            // than the handle
+            result = left ? (10 * facing_direction) : -(10 * facing_direction);
+        }
+        break;
+
+        // @Todo: Spear will need hitbox correction
+    }
+
+    return result;
+}
+
+inline f32 GetWeaponDamage(Weapon *weapon) {
+    f32 result = weapon->attack_damage;
     return result;
 }
 
 // @Note: Returns the positional offset that the weapon should be rendered at
 internal v2 UpdateAttackingWeapon(Weapon *weapon,
-        f32 dt, v2 facing_direction, bool left, f32 *angle_offset_output)
+        f32 dt, v2 facing_direction, bool left, bool is_blocking,
+        f32 *angle_offset_output)
 {
     weapon->attacking_time -= dt;
     if (weapon->attacking_time <= 0) {
         switch (weapon->attacking_type) {
+
             case AttackType_Slash: {
                 weapon->attacking_type = AttackType_ReturningSlash;
-                weapon->attacking_time = 0.2;
+                weapon->attacking_time = 0.1;
                 weapon->attack_offset = 0;
             }
             break;
+            case AttackType_Block: {
+                if (is_blocking) { break; }
+            }
             default: {
+                weapon->has_hit = false;
                 weapon->can_attack = true;
                 weapon->attacking_type = AttackType_None;
                 weapon->attacking_time = 0;
@@ -133,6 +162,10 @@ internal v2 UpdateAttackingWeapon(Weapon *weapon,
             angle_offset = Lerp(start_angle, end_angle, alpha);
         }
         break;
+        case AttackType_Block: {
+            weapon_offset = (left ? -offset : offset) + (10 * facing_direction);
+        }
+        break;
     }
 
     *angle_offset_output = angle_offset;
@@ -159,9 +192,39 @@ internal void InitialisePlayer(Game_State *state, Controlled_Player *player, v2 
     player->health = stats.health;
     player->strength_modifier = stats.strength;
     player->speed_modifier = stats.speed;
+}
 
-    player->family_hunger = stats.family_hunger;
-    player->balance = stats.balance;
+inline bool IsBlocking(Weapon *weapons, u32 weapon_count) {
+    bool result = false;
+    for (u32 it = 0; it < weapon_count; ++it) {
+        result = !weapons[it].can_attack && weapons[it].type == WeaponType_Shield;
+        if (result) { break; }
+    }
+
+    return result;
+}
+
+inline bool IsAttacking(Weapon *weapons) {
+    bool result = (!weapons[0].can_attack && weapons[0].type != WeaponType_Shield) ||
+        (!weapons[1].can_attack && weapons[1].type != WeaponType_Shield);
+    return result;
+}
+
+internal void AttackWithWeapon(Weapon *weapon, bool primary_attack) {
+    if (primary_attack) {
+        weapon->can_attack = false;
+        weapon->attacking_type = weapon->attack_1;
+        weapon->attacking_time = weapon->attack_time_1;
+        weapon->attack_damage = weapon->attack_damage_1;
+        weapon->attack_offset = 0;
+    }
+    else {
+        weapon->can_attack = false;
+        weapon->attacking_type = weapon->attack_2;
+        weapon->attacking_time = weapon->attack_time_2;
+        weapon->attack_damage = weapon->attack_damage_2;
+        weapon->attack_offset = 0;
+    }
 }
 
 internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlled_Player *player) {
@@ -170,7 +233,7 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
     Assert(controller->is_connected);
 
     /// Check input for movement
-    f32 player_speed = 700 * player->speed_modifier;
+    f32 player_speed = 900 * player->speed_modifier;
     v2 move_direction = V2(0, 0);
     if (IsPressed(controller->move_up)) {
         move_direction.y = -1;
@@ -198,28 +261,38 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
     }
 
     /// Check input for attacks
-    if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
-        Weapon *weapon = &player->weapons[0];
-        if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
-            weapon->can_attack = false;
-            weapon->attacking_type = weapon->attack_1;
-            weapon->attacking_time = weapon->attack_time_1;
-            weapon->attack_offset = 0;
-        }
-    }
-    else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
-        Weapon *weapon = &player->weapons[0];
-        if (weapon->can_attack && (weapon->attack_2 != AttackType_None)) {
-            // This means we can use the secondary attack
-            weapon->can_attack = false;
-            weapon->attacking_type = weapon->attack_2;
-            weapon->attacking_time = weapon->attack_time_2;
-            weapon->attack_offset = 0;
-        }
-        else {
-            // Check the second weapon as it might be able to attack
-            weapon = &player->weapons[1];
+    // @Todo: This needs to be generalised so we can use if for AI
+    if (!IsBlocking(player->weapons, player->weapon_count)) {
+        if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+            Weapon *weapon = &player->weapons[0];
             if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
+                AttackWithWeapon(weapon, true);
+            }
+        }
+        else if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
+            Weapon *weapon = &player->weapons[0];
+            if (weapon->can_attack && (weapon->attack_2 != AttackType_None)) {
+                // This means we can use the secondary attack
+                AttackWithWeapon(weapon, false);
+            }
+            else {
+                // Check the second weapon as it might be able to attack
+                weapon = &player->weapons[1];
+                if (weapon->can_attack && (weapon->attack_1 != AttackType_None)) {
+                    AttackWithWeapon(weapon, true);
+                }
+            }
+        }
+        else if (JustPressed(controller->block)) {
+            Weapon *weapon = &player->weapons[0];
+            if (weapon->type == WeaponType_Shield) {
+                AttackWithWeapon(weapon, true);
+            }
+            else {
+                weapon = &player->weapons[1];
+                if (weapon->type == WeaponType_Shield) {
+                    AttackWithWeapon(weapon, true);
+                }
             }
         }
     }
@@ -249,9 +322,13 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
 
         v2 offset = 30 * Normalise(Perp(player->facing_direction));
 
+        Game_Controller *controller = GameGetController(input, 0);
+
         f32 angle_offset = 0;
         v2 weapon_offset = UpdateAttackingWeapon(weapon, dt,
-                player->facing_direction, it == 0, &angle_offset);
+                player->facing_direction, it == 0,
+                IsPressed(controller->block),
+                &angle_offset);
 
         sfFloatRect bounds = sfSprite_getLocalBounds(sprite);
         sfSprite_setOrigin(sprite, V2(bounds.width, bounds.height));
@@ -265,11 +342,7 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
             sfSprite_setScale(sprite, V2(2.3, 2.3));
         }
 
-        v2 hitbox_correction = V2(0, 0);
-        if (weapon->type == WeaponType_Sword) {
-            hitbox_correction = (it == 0 ? (10 * player->facing_direction) :
-                    -(10 * player->facing_direction));
-        }
+        v2 hitbox_correction = GetWeaponHitboxOffset(weapon, it == 0, player->facing_direction);
 
         v2 position = player->position +
             (40 * player->facing_direction + (it == 0 ? offset : -offset)) + weapon_offset;
@@ -287,6 +360,70 @@ internal void UpdateRenderPlayer(Game_State *state, Game_Input *input, Controlle
 
         sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
         sfCircleShape_destroy(hitbox);
+
+        // @Note: Can't "attack" with shield
+        if (weapon->type != WeaponType_Shield
+                && weapon->attacking_type != AttackType_None
+                && !weapon->has_hit)
+        {
+            // @Hack: Technically this function can only be called on the play state
+            // thus we know that state->current_state is a LevelType_Play
+
+            Assert(state->current_state->type == LevelType_Play);
+
+            Play_State *play = &state->current_state->play;
+            for (u32 it = 0; it < play->ai_count; ++it) {
+                AI_Player *ai = &play->enemies[it];
+                if (ai->health <= 0) { continue; }
+                // @Todo: Are weapon hitboxes still 20? I think so
+                if (CircleIntersection(ai->position, ai->hitbox_radius,
+                            position + hitbox_correction, 20))
+                {
+                    f32 old_hp = ai->health;
+                    f32 defence_modifier = 1;
+                    bool blocking = IsBlocking(ai->weapons, ai->weapon_count);
+                    if (blocking) {
+                        Weapon *weapon = 0;
+                        for (u32 it = 0; it < ai->weapon_count; ++it) {
+                            if (ai->weapons[it].type == WeaponType_Shield) {
+                                weapon = &ai->weapons[it];
+                                break;
+                            }
+                        }
+
+                        Assert(weapon);
+
+                        defence_modifier = GetWeaponDamage(weapon);
+                    }
+
+                    ai->health -= defence_modifier *
+                        player->strength_modifier * GetWeaponDamage(weapon);
+
+                    printf("[Info][Attack] New AI Health: %f (Old was: %f)\n",
+                            ai->health, old_hp);
+
+                    AddBlood(play, ai, player);
+
+                    if (!blocking) {
+                        for (u32 it = 0; it < ai->weapon_count; ++it) {
+                            Weapon *weapon = &ai->weapons[it];
+
+                            weapon->has_hit = false;
+                            weapon->can_attack = true;
+                            weapon->attacking_type = AttackType_None;
+                            weapon->attacking_time = 0;
+                            weapon->attack_offset = 0;
+                        }
+                    }
+
+                    ai->attack_wait_time = 1;
+                    ai->attacking = false;
+
+                    weapon->has_hit = true;
+                }
+            }
+        }
+
 
         sfSprite_destroy(sprite);
     }
