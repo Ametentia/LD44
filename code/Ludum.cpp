@@ -115,12 +115,12 @@ internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *pl
 
 internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiNum) {
     AI_Player *enemy = &play->enemies[aiNum];
-    if (enemy->health <= 0) { 
+    if (enemy->health <= 0) {
         //sfSprite_setPosition(enemy->sprite, enemy->position);
         //sfRenderWindow_drawSprite(state->renderer, enemy->sprite, 0);
         if(random(0,10)>5)
             AddBlood(play, enemy->position);
-        return; 
+        return;
     }
     Controlled_Player *player = &play->players[0];
     if (player->health<=0) {
@@ -198,7 +198,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
                     // To stop the player from getting hit by their own thrown weapon
                     thrown->from_player = false;
 
-                    RemoveWeapon(state, enemy->weapons, 0);
+                    RemoveWeapon(state, enemy->weapons, 0, true);
                 }
 
                 AttackWithWeapon(weapon, primary);
@@ -235,14 +235,16 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 	else if(distance > 300) {
 		v2 direction = Normalise(player->position -enemy->position);
 		for(int i = 0; i < play->ai_count; i++) {
-			if(i != aiNum && Length(play->enemies[i].position-enemy->position) < 300) {
-				direction -= Normalise(play->enemies[i].position -enemy->position);
+            AI_Player *other = &play->enemies[i];
+            if (other->health <= 0) { continue; }
+			if(i != aiNum && Length(other->position - enemy->position) < 300) {
+				direction -= Normalise(other->position - enemy->position);
 			}
 		}
+
 		enemy->position += direction * enemy->speed_modifier * 700 * dt;
-		s32 dir = random(-1, 1)-1;
-		if(dir == 0)
-			dir = -1;
+		s32 dir = random(-1, 1) - 1;
+		if(dir == 0) { dir = -1; }
 		enemy->rotate_dir = dir;
 	}
 	else if(enemy->attack_wait_time > 0 && distance >= 190) {
@@ -318,6 +320,16 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
                 f32 old_hp = enemy->health;
                 enemy->health -= (defence_modifier * damage);
+                if (IsBlocking(enemy->weapons, enemy->weapon_count)) {
+                        sfSound_setBuffer(state->sound, GetSound(&state->assets, state->block));
+                        sfSound_setVolume(state->sound, 25);
+                        sfSound_play(state->sound);
+                }
+                else {
+                    sfSound_setBuffer(state->hurt_sound, GetSound(&state->assets, state->hurt_oof));
+                    sfSound_setVolume(state->hurt_sound, 25);
+                    sfSound_play(state->hurt_sound);
+                }
 
                 printf("[Info][Attack] New AI Health: %f (Old was: %f)\n",
                         enemy->health, old_hp);
@@ -353,7 +365,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
     for (u32 it = 0; it < enemy->weapon_count; ++it) {
         Weapon *weapon = &enemy->weapons[it];
         sfSprite *sprite = sfSprite_create();
-        sfTexture *texture = GetTexture(&state->assets, state->weapon_textures[weapon->type]);
+        sfTexture *texture = GetTexture(&state->assets, weapon->texture_handle);
         sfSprite_setTexture(sprite, texture, true);
 
         v2 offset = 30 * Normalise(Perp(enemy->facing_direction));
@@ -369,12 +381,7 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
         sfSprite_setRotation(sprite, Degrees(angle + angle_offset));
 
         sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
-        if (weapon->type == WeaponType_Shield) {
-            sfSprite_setScale(sprite, V2(1.66, 1.58));
-        }
-        else {
-            sfSprite_setScale(sprite, V2(2.3, 2.3));
-        }
+        sfSprite_setScale(sprite, GetWeaponScale(weapon));
 
         v2 hitbox_correction = GetWeaponHitboxOffset(weapon, it == 0, enemy->facing_direction);
 
@@ -384,17 +391,6 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
 
         sfRenderWindow_drawSprite(state->renderer, sprite, 0);
         sfSprite_destroy(sprite);
-
-        sfCircleShape *hitbox = sfCircleShape_create();
-        sfCircleShape_setRadius(hitbox, 20);
-        sfCircleShape_setOrigin(hitbox, V2(20, 20));
-        sfCircleShape_setPosition(hitbox, position + hitbox_correction);
-        sfCircleShape_setFillColor(hitbox, sfTransparent);
-        sfCircleShape_setOutlineColor(hitbox, sfYellow);
-        sfCircleShape_setOutlineThickness(hitbox, 2);
-
-        sfRenderWindow_drawCircleShape(state->renderer, hitbox, 0);
-        sfCircleShape_destroy(hitbox);
 
         if (weapon->type != WeaponType_Shield &&
                 weapon->attacking_type != AttackType_None &&
@@ -488,7 +484,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         player->health = 100;
 
         Weapon weapons[2] = {};
-        weapons[0] = PrefabWeapon(state, WeaponType_Sword);
+        weapons[0] = PrefabWeapon(state, WeaponType_Spear);
         weapons[1] = PrefabWeapon(state, WeaponType_Shield);
 		sfMusic_play(GetMusic(&state->assets, state->cheer));
 		sfMusic_play(GetMusic(&state->assets, state->fight_music));
@@ -509,17 +505,17 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        play->ai_count = state->ai_count;
+        play->ai_count = gameplay_enemy_count;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
-            enemy->speed_modifier = state->ai_speed;
+            enemy->speed_modifier = gameplay_enemy_speed;
             enemy->hitbox_radius = 25;
             enemy->position.x = random(-340, 1300);
             enemy->position.y = random(-340, 1300);
             enemy->weapon_count = 2; // @Todo: This needs to go, it is error prone
-            enemy->texture = state->player_textures[0];
-            enemy->weapons[0] = PrefabWeapon(state, WeaponType_Fists);
-            enemy->weapons[1] = PrefabWeapon(state, WeaponType_Fists);
+            enemy->texture = state->enemy_textures[0];
+            enemy->weapons[0] = PrefabWeapon(state, WeaponType_Fists, true);
+            enemy->weapons[1] = PrefabWeapon(state, WeaponType_Fists, true);
 
             enemy->strength_modifier = 1;
             enemy-> attacking = false;
@@ -563,6 +559,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			gameover->game_over_message = "Your Whole Family Has Died.\n";
 			gameover->game_over_tag_line = "Well Done.";
 			gameover->game_over_stats = "TODO\nTODO\nTODO\n";
+
+		    return;
 		}
 		illness_chance += payment->family_hunger > 1 ? payment->family_hunger - 1 : 0;
 		illness_chance += payment->family_heat > 3 ? payment->family_heat - 2 : 0;
@@ -574,7 +572,8 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		if(random(0,10) < illness_chance && !payment->family_ill){
 			payment->family_ill = true;
 		}
-		return;
+
+        return;
 	}
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
 
@@ -947,18 +946,23 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         Level_State *payment_screen = CreateLevelState(state, LevelType_Payment);
 
         char *weapon_filenames[] = {
-            "sprites/LucyShield.png",
+            "sprites/HandCovered.png",
             "sprites/LucyShield.png",
             "sprites/LucySword.png",
             "sprites/Spear.png",
+            "sprites/EnemyHandCovered.png",
         };
 
-        for (u32 it = 0; it < WeaponType_Count; ++it) {
+        for (u32 it = 0; it < ArrayCount(weapon_filenames); ++it) {
             char *filename = weapon_filenames[it];
             if (filename) {
+                printf("[Info][Assets] Loading Texture %s (Handle was: ", filename);
                 state->weapon_textures[it] = LoadTexture(&state->assets, filename);
+                printf("%u)\n", state->weapon_textures[it].value);
             }
         }
+
+        state->enemy_textures[0] = LoadTexture(&state->assets, "sprites/Enemy.png");
 
         state->background_animation = CreateAnimation(&state->assets,
                 LoadTexture(&state->assets, "sprites/OceanSpriteSheet.png"),

@@ -89,12 +89,11 @@ struct Game_State {
     sfRenderWindow *renderer;
     sfView *view;
     Asset_Manager assets;
-	s32 ai_count = 2;
-	f32 ai_speed = 1;
 
-    Asset_Handle weapon_textures[WeaponType_Count];
+    Asset_Handle weapon_textures[WeaponType_Count + 1];
     Asset_Handle logo_texture;
     Asset_Handle player_textures[3];
+    Asset_Handle enemy_textures[3];
 	Asset_Handle font;
 
 	Asset_Handle character;
@@ -115,5 +114,6 @@ struct Game_State {
 
 internal void AddBlood(Play_State *play, AI_Player *ai, Controlled_Player *player);
 internal void AddBlood(Play_State *play, v2 position, v2 direction);
+internal void AddSparks(Play_State *play, v2 a, v2 b);
 
 #endif  // LUDUM_H_
