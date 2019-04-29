@@ -314,6 +314,7 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         Weapon weapons[2] = {};
         weapons[0] = PrefabWeapon(state, WeaponType_Sword);
         weapons[1] = PrefabWeapon(state, WeaponType_Shield);
+		sfMusic_play(GetMusic(&state->assets, state->cheer));
 
         Player_Stats stats = GetDefaultPlayerStats();
 
@@ -336,11 +337,10 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             sfConvexShape_setPoint(play->blood_shape, it, blood_points[it]);
         }
 
-        // @Todo: Turn this into a function
-        play->ai_count = 10;
+        play->ai_count = state->ai_count;
         for (u32 it = 0; it < play->ai_count; ++it) {
         	AI_Player *enemy = &play->enemies[it];
-            enemy->speed_modifier = 0.6f;
+            enemy->speed_modifier = state->ai_speed;
             enemy->hitbox_radius = 25;
             enemy->position.x = random(-340, 1300);
             enemy->position.y = random(-340, 1300);
@@ -375,15 +375,38 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
     	sfRenderWindow_setView(state->renderer, state->view);
 		int pay = 100*play->ai_count - (100-player->health)+10;
 		int heal = (100-player->health);
-		int family_heat = 10;
+		sfMusic_stop(GetMusic(&state->assets, state->cheer));
 		Level_State *level = RemoveLevelState(state);
 		Free(level);
 		Level_State *current_state = state->current_state;
         Payment_State *payment = &current_state->payment;
 		payment->heal_bill = heal;
 		payment->balence += pay;
-		payment->family_hunger = Min(payment->family_hunger + 1, 3);
-        payment->family_heat = Min(payment->family_hunger + 1, 5);
+		payment->family_hunger++;
+		payment->family_heat++;
+		int illness_chance = 0;
+		illness_chance += payment->family_hunger > 1 ? payment->family_hunger - 1 : 0;
+		illness_chance += payment->family_heat > 3 ? payment->family_heat - 2 : 0;
+		int random_num = random(0,10);
+		payment->gameover_worth += illness_chance + (payment->family_ill ? 3 : 0);
+		if(!payment->family_ill && illness_chance < 4) {
+			payment->gameover_worth = 0;
+		}
+		if(random(0,10) < illness_chance && !payment->family_ill){
+			payment->family_ill = true;
+		}
+		if(payment->gameover_worth > 15){
+			Level_State *payment = RemoveLevelState(state);
+			Free(payment);
+			Level_State *current_state = state->current_state;
+			Game_Over_State *gameover_state = &current_state->game_over;
+			CreateLevelState(state, LevelType_Game_Over);
+			Level_State *gameover_state_push = state->current_state;
+			Game_Over_State *gameover = &gameover_state_push->game_over;
+			gameover->game_over_message = "Your Whole Family Has Died.\n";
+			gameover->game_over_tag_line = "Well Done.";
+			gameover->game_over_stats = "TODO\nTODO\nTODO\n";
+		}
 		return;
 	}
     sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 1, 1));
@@ -506,6 +529,41 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 		sfRenderWindow_drawText(state->renderer, health_text, NULL);
 		sfText_destroy(health_text);
 	}
+	else {
+		sfRenderWindow_mapPixelToCoords(state->renderer,
+            V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
+
+
+		sfText *lose_text = sfText_create();
+		sfText_setString(lose_text, "You Have Died.");
+		sfText_setCharacterSize(lose_text, 120);
+		sfText_setFont(lose_text, GetFont(&state->assets, state->font));
+		sfFloatRect bounds = sfText_getLocalBounds(lose_text);
+		sfText_setOrigin(lose_text, V2(bounds.left + bounds.width/2,
+						           bounds.top + bounds.height/2));
+		v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+				V2i(sfRenderWindow_getSize(state->renderer).x/2, 
+					sfRenderWindow_getSize(state->renderer).y/10), 
+				state->view);
+		sfText_setPosition(lose_text, V2(text_loc.x, text_loc.y));
+		sfText_setFillColor(lose_text, CreateColour(1, 1, 1, 1));
+		sfRenderWindow_drawText(state->renderer, lose_text, NULL);
+		sfText_destroy(lose_text);
+		if (JustPressed(controller->accept)) {
+			sfMusic_stop(GetMusic(&state->assets, state->cheer));
+			Level_State *play = RemoveLevelState(state);
+			Free(play);
+			Level_State *payment = RemoveLevelState(state);
+			Free(payment);
+			CreateLevelState(state, LevelType_Game_Over);
+			Level_State *current_state = state->current_state;
+			Game_Over_State *gameover = &current_state->game_over;
+			gameover->game_over_message = "You Died In Battle.";
+			gameover->game_over_tag_line = "Your family wishes you spent more time with them";
+			gameover->game_over_stats = "TODO\nTODO\nTODO\nTODO";
+			return;
+		}
+	}
 
 	bool won = false;
 	for(u32 i = 0; i < play->ai_count; i++) {
@@ -602,7 +660,7 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	};
 	char *heat_strings[] = {
 		"Lots of firewood","Some firewood", "Low supply of firewood",
-		"No firewood", "Going cold", "Freezing"
+		"No firewood", "Cold", "Freezing"
 	};
 	char *health_strings[] = {
 		"Healthy","Ill", "Require medicine"
@@ -610,13 +668,13 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sprintf(stats_string,
 				"Money: %d Gold\n"
 				"You Paid %d Gold to recover from your wounds\n"
-				"Family Food Supply: %s\n"
+				"Family Hunger: %s\n"
 				"Heat: %s\n"
 				"Family Health: %s\n",
 				payment->balence,
 				payment->heal_bill,
-				hunger_strings[payment->family_hunger > -1 ? payment->family_hunger: 0],
-				heat_strings[payment->family_heat],
+				hunger_strings[Clamp(payment->family_hunger > -1 ? payment->family_hunger: 0, 0, 3)],
+				heat_strings[Clamp(payment->family_heat,0,5)],
 				health_strings[payment->family_ill ? 2 : 0]
 				);
 
@@ -627,71 +685,9 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	sfText_setFillColor(stats, CreateColour(1, 1, 1, 1));
 	sfRenderWindow_drawText(state->renderer, stats, NULL);
 	sfText_destroy(stats);
-
-	sfText *heading = sfText_create();
-	sfText_setString(heading, "Domestic");
-	sfText_setCharacterSize(heading, 64);
-	sfText_setFont(heading, GetFont(&state->assets, state->font));
-	sfText_setPosition(heading, V2(810, 350));
-	sfText_setFillColor(heading, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, heading, NULL);
-	sfText_setString(heading, "Equipment");
-	sfText_setPosition(heading, V2(810, 500));
-	sfRenderWindow_drawText(state->renderer, heading, NULL);
-	sfText_setString(heading, "Stats");
-	sfText_setPosition(heading, V2(810, 42));
-	sfRenderWindow_drawText(state->renderer, heading, NULL);
-	sfText_destroy(heading);
-
-	sfText *domestic_text = sfText_create();
-	sfText_setString(domestic_text, "Food");
-	sfText_setCharacterSize(domestic_text, 40);
-	sfText_setFont(domestic_text, GetFont(&state->assets, state->font));
-	sfText_setPosition(domestic_text, V2(810, 420));
-	sfText_setFillColor(domestic_text, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, domestic_text, NULL);
-	sfText_destroy(domestic_text);
-
-	sfText *domestic_desc = sfText_create();
-	sfText_setString(domestic_desc, "	Your family like to eat.");
-	sfText_setCharacterSize(domestic_desc, 34);
-	sfText_setFont(domestic_desc, GetFont(&state->assets, state->font));
-	sfText_setPosition(domestic_desc, V2(810, 460));
-	sfText_setFillColor(domestic_desc, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, domestic_desc, NULL);
-
-    sfText_destroy(domestic_desc);
-
-	sfText *equipment_text = sfText_create();
-	sfText_setString(equipment_text, "Sword");
-	sfText_setCharacterSize(equipment_text, 40);
-	sfText_setFont(equipment_text, GetFont(&state->assets, state->font));
-	sfText_setPosition(equipment_text, V2(810, 570));
-	sfText_setFillColor(equipment_text, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, equipment_text, NULL);
-	sfText_setString(equipment_text, "Spear");
-	sfText_setPosition(equipment_text, V2(810, 690));
-	sfRenderWindow_drawText(state->renderer, equipment_text, NULL);
-	sfText_setString(equipment_text, "Shield");
-	sfText_setPosition(equipment_text, V2(810, 810));
-	sfRenderWindow_drawText(state->renderer, equipment_text, NULL);
-	sfText_destroy(equipment_text);
-
-	sfText *equipment_desc = sfText_create();
-	sfText_setString(equipment_desc, "	If you want your enemies to look more stripey");
-	sfText_setCharacterSize(equipment_desc, 34);
-	sfText_setFont(equipment_desc, GetFont(&state->assets, state->font));
-	sfText_setPosition(equipment_desc, V2(810, 610));
-	sfText_setFillColor(equipment_desc, CreateColour(1, 1, 1, 1));
-	sfRenderWindow_drawText(state->renderer, equipment_desc, NULL);
-	sfText_setString(equipment_desc, "	If you want someone roughly a meter away full of holes.");
-	sfText_setPosition(equipment_desc, V2(810, 730));
-	sfRenderWindow_drawText(state->renderer, equipment_desc, NULL);
-	sfText_setString(equipment_desc, "	If you don't like sharp hurty things touching you.");
-	sfText_setPosition(equipment_desc, V2(810, 850));
-	sfRenderWindow_drawText(state->renderer, equipment_desc, NULL);
-	sfText_destroy(equipment_desc);
-    if (JustPressed(input->mouse_buttons[MouseButton_Right])) {
+    Game_Controller *controller = GameGetController(input, 0);
+    Assert(controller->is_connected);
+    if (JustPressed(controller->accept)) {
         CreateLevelState(state, LevelType_Play);
     }
 }
@@ -702,6 +698,7 @@ internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_In
 		logo->delta_rate = 1.0;
 		logo->rate = 0;
 		logo->opacity = 0;
+		state->logo_texture = LoadTexture(&state->assets, "sprites/logo.png");
 		logo->initialised = true;
 	}
 	logo->rate += logo->delta_rate;
@@ -722,6 +719,54 @@ internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_In
         logo->delta_rate = -logo->delta_rate;
     }
 }
+
+internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *gameover, Game_Input *input) {
+    sfRenderWindow_clear(state->renderer, CreateColour(0, 0, 0, 1));
+	sfText *game_over_text = sfText_create();
+	sfText_setString(game_over_text, gameover->game_over_message);
+	sfText_setCharacterSize(game_over_text, 120);
+	sfText_setFont(game_over_text, GetFont(&state->assets, state->font));
+	sfFloatRect bounds = sfText_getLocalBounds(game_over_text);
+	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
+							   bounds.top + bounds.height/2));
+	v2 text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+			V2i(sfRenderWindow_getSize(state->renderer).x/2, 
+				sfRenderWindow_getSize(state->renderer).y/9), 
+			state->view);
+	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
+	sfText_setFillColor(game_over_text, CreateColour(1, 1, 1, 1));
+	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
+
+	sfText_setString(game_over_text, gameover->game_over_tag_line);
+	sfText_setCharacterSize(game_over_text, 64);
+	sfText_setFont(game_over_text, GetFont(&state->assets, state->font));
+	bounds = sfText_getLocalBounds(game_over_text);
+	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
+							   bounds.top + bounds.height/2));
+	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+			V2i(sfRenderWindow_getSize(state->renderer).x/2, 
+				sfRenderWindow_getSize(state->renderer).y/5), 
+			state->view);
+	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
+	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
+
+	sfText_setString(game_over_text, gameover->game_over_stats);
+	sfText_setCharacterSize(game_over_text, 64);
+	sfText_setFont(game_over_text, GetFont(&state->assets, state->font));
+	bounds = sfText_getLocalBounds(game_over_text);
+	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
+							   bounds.top + bounds.height/2));
+	text_loc = sfRenderWindow_mapPixelToCoords(state->renderer, 
+			V2i(sfRenderWindow_getSize(state->renderer).x/3, 
+				sfRenderWindow_getSize(state->renderer).y/2.5f), 
+			state->view);
+	sfText_setPosition(game_over_text, V2(text_loc.x, text_loc.y));
+	sfRenderWindow_drawText(state->renderer, game_over_text, NULL);
+
+
+	sfText_destroy(game_over_text);
+}
+
 
 internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
     if (!state->initialised) {
@@ -756,6 +801,13 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         state->player_textures[0] = LoadTexture(&state->assets, "sprites/LucySprite.png");
 		state->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
 		state->character = LoadTexture(&state->assets, "sprites/Lucy.png");
+		state->cheer = LoadMusic(&state->assets, "sounds/cheer.wav");
+		sfMusic_setLoop(GetMusic(&state->assets, state->cheer), true);
+		sfMusic_setVolume(GetMusic(&state->assets, state->cheer), 15);
+		state->short_cheer[0] = LoadSound(&state->assets, "sounds/short_cheer1.wav");
+		state->short_cheer[1] = LoadSound(&state->assets, "sounds/short_cheer2.wav");
+		state->short_cheer[2] = LoadSound(&state->assets, "sounds/short_cheer3.wav");
+		state->sound = sfSound_create();
         state->initialised = true;
     }
 
@@ -781,6 +833,11 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
         case LevelType_Payment: {
             Payment_State *payment = &current_state->payment;
             UpdateRenderPaymentState(state, payment, input);
+        }
+        break;
+        case LevelType_Game_Over: {
+            Game_Over_State *game_over = &current_state->game_over;
+            UpdateRenderGameOverState(state, game_over, input);
         }
         break;
     }
