@@ -39,7 +39,7 @@ internal void AddDashLines(Play_State *play, v2 a, v2 b) {
     new_blood->lifetime = 0.5f;
     new_blood->speed = 2;
     play->moving_blood_count++;
-    if(play->moving_blood_count > 74) {
+    if(play->moving_blood_count > 249) {
         play->moving_blood_count = 0;
     }
 }
@@ -57,7 +57,7 @@ internal void AddSparks(Play_State *play, v2 a, v2 b) {
 		new_blood->lifetime = 0.2f;
 		new_blood->speed = random(10, 15);
 		play->moving_blood_count++;
-		if(play->moving_blood_count > 74) {
+		if(play->moving_blood_count > 249) {
 			play->moving_blood_count = 0;
 		}
 	}
@@ -74,7 +74,7 @@ internal void AddBlood(Play_State *play, v2 position, v2 direction) {
 		new_blood->lifetime = 0.2f;
 		new_blood->speed = random(10, 15);
 		play->moving_blood_count++;
-		if(play->moving_blood_count > 74) {
+		if(play->moving_blood_count > 249) {
 			play->moving_blood_count = 0;
 		}
 	}
@@ -90,7 +90,7 @@ internal void AddBlood(Play_State *play, v2 position) {
         new_blood->lifetime = 0.2f;
         new_blood->speed = random(10, 15);
         play->moving_blood_count++;
-        if(play->moving_blood_count > 74) {
+        if(play->moving_blood_count > 249) {
             play->moving_blood_count = 0;
         }
     }
@@ -107,7 +107,7 @@ internal void AddBlood(Play_State *play, AI_Player *enemy, Controlled_Player *pl
 		new_blood->lifetime = 0.2f;
 		new_blood->speed = random(10, 15);
 		play->moving_blood_count++;
-		if(play->moving_blood_count > 74) {
+		if(play->moving_blood_count > 249) {
 			play->moving_blood_count = 0;
 		}
 	}
@@ -118,9 +118,11 @@ internal void UpdateAIPlayer(Game_State *state, Play_State *play, f32 dt, u8 aiN
     if (enemy->health <= 0) {
         //sfSprite_setPosition(enemy->sprite, enemy->position);
         //sfRenderWindow_drawSprite(state->renderer, enemy->sprite, 0);
-        if(random(0,10)>5)
+        if(enemy->blood_timer > 0)  {
             AddBlood(play, enemy->position);
-        return;
+            enemy->blood_timer-=dt;
+        }
+        return; 
     }
     Controlled_Player *player = &play->players[0];
     if (player->health<=0) {
@@ -454,15 +456,18 @@ internal void UpdateMovingBlood(Game_State *state, Play_State *play, Game_Input 
                     play->stale_blood[play->stale_blood_count] = blood->position;
                     play->stale_blood_count++;
                 }
-				if(play->stale_blood_count > 499) { play->stale_blood_count = 0; }
+				if(play->stale_blood_count > 999) { play->stale_blood_count = 0; }
 				blood->active = false;
 			}
 		}
 	}
-	for(int i = 0; i < 500; i++) {
+	for(int i = 0; i < 1000; i++) {
 		sfConvexShape_setPosition(play->blood_shape, play->stale_blood[i]);
 		sfConvexShape_setFillColor(play->blood_shape, sfRed);
-		if(play->stale_blood[i].x != 0)
+        v2 stale = play->stale_blood[i];
+        stale.x -= 960;
+        stale.y -= 540;
+		if(stale.x * stale.x + stale.y * stale.y < 1000*1000)
 			sfRenderWindow_drawConvexShape(state->renderer, play->blood_shape, 0);
 	}
 }
@@ -479,15 +484,16 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
         sfCircleShape_setFillColor(play->arena, CreateColour(1, 1, 1, 1));
         sfCircleShape_setPosition(play->arena, V2(960, 540));
 
-
         Controlled_Player *player = &play->players[0];
         player->health = 100;
 
         Weapon weapons[2] = {};
         weapons[0] = PrefabWeapon(state, WeaponType_Spear);
         weapons[1] = PrefabWeapon(state, WeaponType_Shield);
+        state->music_num = random(0,2);
+        printf("%d\n", state->music_num);
 		sfMusic_play(GetMusic(&state->assets, state->cheer));
-		sfMusic_play(GetMusic(&state->assets, state->fight_music));
+		sfMusic_play(GetMusic(&state->assets, state->fight_music[state->music_num]));
 
         Player_Stats stats = GetDefaultPlayerStats();
 
@@ -514,8 +520,12 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
             enemy->position.y = random(-340, 1300);
             enemy->weapon_count = 2; // @Todo: This needs to go, it is error prone
             enemy->texture = state->enemy_textures[0];
-            enemy->weapons[0] = PrefabWeapon(state, WeaponType_Fists, true);
-            enemy->weapons[1] = PrefabWeapon(state, WeaponType_Fists, true);
+            enemy->weapons[0] = PrefabWeapon(state, 
+                (Weapon_Type)random(state->battle_count > 5 ? 2:0,
+                (s32)Clamp(state->battle_count, 1, 3))
+            );
+            enemy->weapons[1] = PrefabWeapon(state, (Weapon_Type)(state->battle_count > 7 ? 1:0));
+            enemy->blood_timer = 3;
 
             enemy->strength_modifier = 1;
             enemy-> attacking = false;
@@ -534,17 +544,18 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 	if(play->won && JustPressed(controller->accept)) {
 		sfView_setCenter(state->view, V2(960, 540));
     	sfRenderWindow_setView(state->renderer, state->view);
-		int pay = 100*play->ai_count - (100-player->health)+10;
+		int pay = 100*play->ai_count - (100-player->health);
 		int heal = (100-player->health);
 		sfMusic_stop(GetMusic(&state->assets, state->cheer));
-		sfMusic_stop(GetMusic(&state->assets, state->fight_music));
+		sfMusic_stop(GetMusic(&state->assets, state->fight_music[state->music_num]));
 		Level_State *level = RemoveLevelState(state);
 		Free(level);
 		Level_State *current_state = state->current_state;
         Payment_State *payment = &current_state->payment;
 		payment->heal_bill = heal;
-		payment->balence += pay;
+		payment->balence += pay + (heal == 0 ? 40*state->ai_count : 0);
 		payment->family_hunger++;
+        state->battle_count++;
 		payment->family_heat++;
 		int illness_chance = 0;
 		if(payment->gameover_worth > 15){
@@ -557,11 +568,12 @@ internal void UpdateRenderPlayState(Game_State *state, Play_State *play, Game_In
 			Level_State *gameover_state_push = state->current_state;
 			Game_Over_State *gameover = &gameover_state_push->game_over;
 			gameover->game_over_message = "Your Whole Family Has Died.\n";
-			gameover->game_over_tag_line = "Well Done.";
+			gameover->game_over_tag_line = "Well Done.\n";
 			gameover->game_over_stats = "TODO\nTODO\nTODO\n";
 
 		    return;
 		}
+		sfMusic_play(GetMusic(&state->assets, state->shop_music));
 		illness_chance += payment->family_hunger > 1 ? payment->family_hunger - 1 : 0;
 		illness_chance += payment->family_heat > 3 ? payment->family_heat - 2 : 0;
 		int random_num = random(0,10);
@@ -800,37 +812,177 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 		payment->family_hunger = 0;
 		payment->heal_bill = 0;
 		payment->balence = 0;
+		sfMusic_play(GetMusic(&state->assets, state->shop_music));
 		payment->initialised = true;
 	}
 
-	sfRectangleShape *char_rect = sfRectangleShape_create();
-	sfRectangleShape_setPosition(char_rect, V2(-30, 10));
-	sfRectangleShape_setTexture(char_rect, GetTexture(&state->assets,
-				state->character), false);
-	sfRectangleShape_setSize(char_rect, V2(864, 1080));
-	sfRectangleShape_setFillColor(char_rect, CreateColour(1,1,1,1));
-	sfRenderWindow_drawRectangleShape(state->renderer, char_rect, NULL);
-	sfRectangleShape_destroy(char_rect);
+	sfRectangleShape *shop_rect = sfRectangleShape_create();
+	sfRectangleShape_setPosition(shop_rect, V2(0, 0));
+	sfRectangleShape_setTexture(shop_rect, GetTexture(&state->assets,
+				state->shop_back), false);
+	sfRectangleShape_setSize(shop_rect, V2(1920, 1080));
+	sfRectangleShape_setFillColor(shop_rect, CreateColour(1,1,1,1));
+	sfRenderWindow_drawRectangleShape(state->renderer, shop_rect, NULL);
+	sfRectangleShape_destroy(shop_rect);
 
-	sfRectangleShape *background_options = sfRectangleShape_create();
-	sfRectangleShape_setPosition(background_options, V2(800, 50));
-	sfRectangleShape_setFillColor(background_options, CreateColour(0.3,0.3,0.3,1));
-	sfRectangleShape_setSize(background_options, V2(1080, 990));
-	sfRenderWindow_drawRectangleShape(state->renderer, background_options, NULL);
+    sfSprite *player_health = sfSprite_create();
+    sfSprite_setTexture(player_health,
+            GetTexture(&state->assets, state->health_indicators[3]), true);
 
-	sfRectangleShape_setFillColor(background_options, CreateColour(0.1,0.1,0.1,1));
-	sfRectangleShape_setPosition(background_options, V2(805, 55));
-	sfRectangleShape_setSize(background_options, V2(1070, 57));
-	sfRenderWindow_drawRectangleShape(state->renderer, background_options, NULL);
-	sfRectangleShape_destroy(background_options);
+    sfFloatRect bounds = sfSprite_getLocalBounds(player_health);
+    sfSprite_setOrigin(player_health, V2(bounds.left + (bounds.width / 2),
+                bounds.top + (bounds.height / 2)));
 
-	sfText *stats = sfText_create();
+    sfSprite_setScale(player_health, V2(3, 3));
+
+	sfText *difficulty = sfText_create();
+    sfText_setCharacterSize(difficulty, 24);
+    sfText_setFont(difficulty, GetFont(&state->assets, state->font));
+    sfText_setFillColor(difficulty, CreateColour(1, 1, 1, 1));
+    char *difficulties[] = {
+        "Easy", "Medium", "Hard" 
+    };
+    bool selected = false;
+    for(int i = 0 ; i < 3; i ++) {
+
+        sfText_setString(difficulty, difficulties[i]);
+
+        sfFloatRect bounds = sfText_getLocalBounds(difficulty);
+        sfText_setOrigin(difficulty, V2(bounds.left + (bounds.width / 2),
+                    bounds.top + (bounds.height / 2)));
+        sfText_setPosition(difficulty, V2(1300 + 170*i + (i ==2 ? 80:0), 860));
+        sfRenderWindow_drawText(state->renderer, difficulty, NULL);
+
+        sfSprite_setPosition(player_health, V2(1300 + i*190 + (i==1 ? -20:0), 950));
+        bounds = sfSprite_getGlobalBounds(player_health);
+        sfRenderWindow_drawSprite(state->renderer, player_health, 0);
+        if(i==1){
+            sfSprite_setPosition(player_health, V2(1330 + i*190, 990));
+            sfRenderWindow_drawSprite(state->renderer, player_health, 0);
+            bounds.width += 30;
+            bounds.height += 40;
+        }
+        else if(i==2){
+            sfSprite_setPosition(player_health, V2(1400 + i*190, 950));
+            sfRenderWindow_drawSprite(state->renderer, player_health, 0);
+            sfSprite_setPosition(player_health, V2(1350 + i*190, 990));
+            sfRenderWindow_drawSprite(state->renderer, player_health, 0);
+            bounds.width += 100;
+            bounds.height += 40;
+        }
+
+        if(JustPressed(input->mouse_buttons[MouseButton_Left])) {
+            input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
+                V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
+            bool x_correct = input->unprojected_mouse.x > bounds.left && 
+                input->unprojected_mouse.x <  + bounds.left + bounds.width;
+            bool y_correct = input->unprojected_mouse.y > bounds.top  && 
+                input->unprojected_mouse.y < bounds.top + bounds.height;
+            if(x_correct && y_correct) {
+                selected = true;
+                switch(i){
+                    case 0:
+                        state->ai_count = 1;
+                        state->ai_speed = 0.8;
+                        break;
+                    case 1:
+                        state->ai_count = 2;
+                        state->ai_speed = 0.8;
+                        break;
+                    case 2:
+                        state->ai_count = 2;
+                        state->ai_speed = 1;
+                        break;
+
+                }
+            }
+        }
+    }
+    sfSprite_destroy(player_health);
+	sfText_destroy(difficulty);
+    if(selected) {
+	    sfMusic_stop(GetMusic(&state->assets, state->shop_music));
+        CreateLevelState(state, LevelType_Play);
+    }
+
+
+
+	sfText *items = sfText_create();
+	char *items_strings[] = {
+		"Buy\nFamily\nFood", "Buy\nFamily\nMedicine", "Buy\nFamily\nFire Wood"
+	};
+    for(int i = 0; i < 3; i++) {
+        sfText_setString(items, items_strings[i]);
+        sfText_setCharacterSize(items, 24);
+        sfText_setFont(items, GetFont(&state->assets, state->font));
+        sfText_setPosition(items, V2(690 + 310*i + (i==2?-15:0), 140));
+        sfText_setFillColor(items, CreateColour(1, 1, 1, 1));
+        sfRenderWindow_drawText(state->renderer, items, NULL);
+        if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+            sfFloatRect bounds = sfText_getLocalBounds(items);
+            input->unprojected_mouse = sfRenderWindow_mapPixelToCoords(state->renderer,
+                V2i(input->screen_mouse.x, input->screen_mouse.y), state->view);
+            bool x_correct = input->unprojected_mouse.x > 690 + 310*i + (i==2?-15:0) && 
+                input->unprojected_mouse.x <  + 690 + 310*i + (i==2?-15:0) + bounds.left + bounds.width;
+            bool y_correct = input->unprojected_mouse.y > 140  && 
+                input->unprojected_mouse.y < 140 + bounds.top + bounds.height;
+            if(x_correct && y_correct) {
+                switch(i) {
+                    case 0:
+                        if(payment->balence >= 80) {
+                            payment->family_hunger-=2;
+                            payment->balence -= 80;
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        else {
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->no_buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        break;
+                    case 2:
+                        if(payment->balence >= 120) {
+                            payment->family_heat--;
+                            if(payment->family_heat > 2)
+                                payment->family_heat = 2;
+                            payment->balence -= 120;
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        else {
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->no_buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        break;
+                    case 1:
+                        if(payment->balence >= 150) {
+                            payment->family_ill = false;
+                            payment->balence -= 150;
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        else {
+                            sfSound_setBuffer(state->sound, GetSound(&state->assets, state->no_buy));
+                            sfSound_setVolume(state->sound, 30);
+                            sfSound_play(state->sound);
+                        }
+                        break;
+                }
+            }
+        }
+    }
+	sfText_destroy(items);
 	char stats_string[512];
 	char *hunger_strings[] = {
 		"Well fed", "Some food", "Hungry", "Famished"
 	};
 	char *heat_strings[] = {
-		"Lots of firewood","Some firewood", "Low supply of firewood",
+		"Lots of firewood","Some firewood", "Low on firewood",
 		"No firewood", "Cold", "Freezing"
 	};
 	char *health_strings[] = {
@@ -838,29 +990,41 @@ internal void UpdateRenderPaymentState(Game_State *state, Payment_State *payment
 	};
 	sprintf(stats_string,
 				"Money: %d Gold\n"
-				"You Paid %d Gold to recover from your wounds\n"
 				"Family Hunger: %s\n"
 				"Heat: %s\n"
 				"Family Health: %s\n",
 				payment->balence,
-				payment->heal_bill,
 				hunger_strings[Clamp(payment->family_hunger > -1 ? payment->family_hunger: 0, 0, 3)],
 				heat_strings[Clamp(payment->family_heat,0,5)],
 				health_strings[payment->family_ill ? 2 : 0]
 				);
 
+	sfText *stats = sfText_create();
 	sfText_setString(stats, stats_string);
-	sfText_setCharacterSize(stats, 40);
+	sfText_setCharacterSize(stats, 35);
 	sfText_setFont(stats, GetFont(&state->assets, state->font));
-	sfText_setPosition(stats, V2(810, 110));
-	sfText_setFillColor(stats, CreateColour(1, 1, 1, 1));
+	sfText_setPosition(stats, V2(700, 625));
+	sfText_setFillColor(stats, CreateColour(0.2, 0.2, 0.2, 1));
 	sfRenderWindow_drawText(state->renderer, stats, NULL);
+
+    if(payment->heal_bill > 0) {
+        sprintf(stats_string, "You paid %d Gold to recover from your wounds\n", payment->heal_bill);
+        sfText_setString(stats, stats_string);
+        sfText_setPosition(stats, V2(700, 1030));
+        sfText_setFillColor(stats, CreateColour(0.2, 0.2, 0.2, 1));
+        sfRenderWindow_drawText(state->renderer, stats, NULL);
+    }
+    else if(payment->balence > 0 &&payment->heal_bill == 0){
+        sprintf(stats_string, "You gained %d Gold for a good show\n", (state->ai_count * 40));
+        sfText_setString(stats, stats_string);
+        sfText_setPosition(stats, V2(700, 1030));
+        sfText_setFillColor(stats, CreateColour(0.2, 0.2, 0.2, 1));
+        sfRenderWindow_drawText(state->renderer, stats, NULL);
+    }
 	sfText_destroy(stats);
+
     Game_Controller *controller = GameGetController(input, 0);
     Assert(controller->is_connected);
-    if (JustPressed(controller->accept)) {
-        CreateLevelState(state, LevelType_Play);
-    }
 }
 
 internal void UpdateRenderLogoState(Game_State *state, Logo_State *logo, Game_Input *input) {
@@ -910,7 +1074,6 @@ internal void UpdateRenderGameOverState(Game_State *state, Game_Over_State *game
 
 	sfText_setString(game_over_text, gameover->game_over_tag_line);
 	sfText_setCharacterSize(game_over_text, 64);
-	sfText_setFont(game_over_text, GetFont(&state->assets, state->font));
 	bounds = sfText_getLocalBounds(game_over_text);
 	sfText_setOrigin(game_over_text, V2(bounds.left + bounds.width/2,
 							   bounds.top + bounds.height/2));
@@ -974,6 +1137,14 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->health_indicators[3] = LoadTexture(&state->assets, "sprites/EnemyHealthFull.png");
 		state->health_indicators[4] = LoadTexture(&state->assets, "sprites/EnemyHealthMedium.png");
 		state->health_indicators[5] = LoadTexture(&state->assets, "sprites/EnemyHealthLow.png");
+
+		state->shop_back = LoadTexture(&state->assets, "sprites/shop.png");
+		state->shop_items[0] = LoadTexture(&state->assets, "sprites/Apple.png");
+		state->shop_items[1] = LoadTexture(&state->assets, "sprites/Fire.png");
+		state->shop_items[2] = LoadTexture(&state->assets, "sprites/Meds.png");
+		state->no_buy = LoadSound(&state->assets, "sounds/no_go2.wav");
+		state->buy = LoadSound(&state->assets, "sounds/buy.wav");
+
         state->swipe_sounds[0] = LoadSound(&state->assets, "sounds/swipe1.wav");
         state->swipe_sounds[1] = LoadSound(&state->assets, "sounds/swipe2.wav");
         state->swipe_sounds[2] = LoadSound(&state->assets, "sounds/swipe3.wav");
@@ -985,11 +1156,19 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->font = LoadFont(&state->assets, "fonts/Ubuntu.ttf");
 		state->character = LoadTexture(&state->assets, "sprites/Lucy.png");
 		state->cheer = LoadMusic(&state->assets, "sounds/cheer.wav");
-		state->fight_music = LoadMusic(&state->assets, "music/Holographic mirage.wav");
+
+		state->fight_music[0] = LoadMusic(&state->assets, "music/Holographic mirage.wav");
+		state->fight_music[1] = LoadMusic(&state->assets, "music/fight.wav");
+		state->shop_music = LoadMusic(&state->assets, "music/shop.wav");
+		sfMusic_setLoop(GetMusic(&state->assets, state->fight_music[0]), true);
+		sfMusic_setVolume(GetMusic(&state->assets, state->fight_music[0]), 20);
+		sfMusic_setLoop(GetMusic(&state->assets, state->fight_music[1]), true);
+		sfMusic_setVolume(GetMusic(&state->assets, state->fight_music[1]), 20);
+		sfMusic_setLoop(GetMusic(&state->assets, state->shop_music), true);
+		sfMusic_setVolume(GetMusic(&state->assets, state->shop_music), 15);
+
 		sfMusic_setLoop(GetMusic(&state->assets, state->cheer), true);
-		sfMusic_setLoop(GetMusic(&state->assets, state->fight_music), true);
 		sfMusic_setVolume(GetMusic(&state->assets, state->cheer), 15);
-		sfMusic_setVolume(GetMusic(&state->assets, state->fight_music), 30);
 		state->block = LoadSound(&state->assets, "sounds/block.wav");
 		state->sound = sfSound_create();
 		state->hurt_sound = sfSound_create();
