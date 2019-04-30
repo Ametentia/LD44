@@ -2,6 +2,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <SFML/System.h>
 #include <SFML/Graphics.h>
@@ -21,6 +22,8 @@ internal bool LinuxInitialise(Game_State *state) {
         state->view = global_current_view;
     }
 	srand(time(NULL));
+
+    chdir("../data");
 
     return result;
 }
@@ -60,6 +63,10 @@ int main(int argc, char **argv) {
         sfRenderWindow_display(state->renderer);
 
         global_running = !current_input->requested_quit;
+        if (current_input->requested_fullscreen) {
+            CSFMLToggleFullscreen(state);
+            current_input->requested_fullscreen = false;
+        }
 
         Swap(current_input, prev_input);
         GameSwapInputs(current_input, prev_input);
