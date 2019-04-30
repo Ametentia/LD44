@@ -41,6 +41,7 @@ struct Game_Input {
     Game_Controller controllers[4];
     f32 delta_time;
     bool requested_quit;
+    bool requested_fullscreen;
 
     Game_Button mouse_buttons[MouseButton_Count];
     v2 screen_mouse;

@@ -105,6 +105,7 @@ struct Game_State {
     Asset_Handle arena;
 
     Asset_Handle title;
+    Asset_Handle fullscreen;
     Asset_Handle start[2];
     Asset_Handle credits[2];
 

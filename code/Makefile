@@ -10,8 +10,8 @@ DEFINES  := -D$(UPPER_PROJECT)_INTERNAL -D$(UPPER_PROJECT)_SLOW
 
 ifeq ($(OS), Windows_NT)
 	PLATFORM  = Win
-	LINKER    = /link /LIBPATH:..\libs\CSFML\lib csfml-audio-d.lib csfml-graphics-d.lib csfml-window-d.lib csfml-system-d.lib opengl32.lib kernel32.lib
-	COMPILER += -imsvc ..\libs\CSFML\include /MDd /Zi /Od --driver-mode=cl /Fe$(PROJECT).exe
+	LINKER    = /link /LIBPATH:..\libs\CSFML\lib csfml-audio.lib csfml-graphics.lib csfml-window.lib csfml-system.lib opengl32.lib kernel32.lib
+	COMPILER += -imsvc ..\libs\CSFML\include /MD /O2 --driver-mode=cl /Fe$(PROJECT).exe
 	DEFINES  += -D$(UPPER_PROJECT)_WIN
 else
 	SHELL  = /bin/bash

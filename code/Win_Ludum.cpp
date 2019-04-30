@@ -13,7 +13,7 @@
 #include "CSFML_Ludum.cpp"
 
 global bool global_running;
-global bool win_show_console = true;
+global bool win_show_console = false;
 
 internal void WinSetupConsole() {
     // Attach to console opened from
@@ -95,6 +95,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         sfRenderWindow_display(state->renderer);
 
         global_running = !current_input->requested_quit;
+        if (current_input->requested_fullscreen) {
+            CSFMLToggleFullscreen(state);
+            current_input->requested_fullscreen = false;
+        }
 
         Swap(current_input, prev_input);
         GameSwapInputs(current_input, prev_input);

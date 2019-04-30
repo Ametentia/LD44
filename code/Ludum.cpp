@@ -108,7 +108,9 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
         }
     }
 
-    for (u32 it = 0; it < ArrayCount(controller->buttons); ++it) {
+    if (JustPressed(controller->menu)) { input->requested_quit = true; }
+
+    for (u32 it = 0; it < ArrayCount(controller->buttons) - 1; ++it) {
         if (JustPressed(controller->buttons[it])) {
             CreateLevelState(state, LevelType_Payment);
         }
@@ -176,6 +178,24 @@ internal void UpdateRenderMenuState(Game_State *state, Menu_State *menu, Game_In
     }
 
     sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
+    sfSprite_setTexture(sprite, GetTexture(&state->assets, state->fullscreen), true);
+    bounds = sfSprite_getLocalBounds(sprite);
+    sfSprite_setOrigin(sprite, V2(bounds.width / 2, bounds.height / 2));
+    sfSprite_setScale(sprite, V2(2, 2));
+    sfSprite_setPosition(sprite, V2(10 + bounds.width, 1070 - bounds.height));
+
+    bounds = sfSprite_getGlobalBounds(sprite);
+    if (mouse.x >= bounds.left && mouse.x <= (bounds.left + bounds.width)) {
+        if (mouse.y >= bounds.top && mouse.y <= (bounds.top + bounds.height)) {
+            if (JustPressed(input->mouse_buttons[MouseButton_Left])) {
+                input->requested_fullscreen = true;
+            }
+        }
+    }
+
+    sfRenderWindow_drawSprite(state->renderer, sprite, 0);
+
     sfSprite_destroy(sprite);
 }
 
@@ -1506,6 +1526,7 @@ internal void UpdateRenderLudum(Game_State *state, Game_Input *input) {
 		state->no_buy = LoadSound(&state->assets, "sounds/no_go2.wav");
 		state->buy = LoadSound(&state->assets, "sounds/buy.wav");
 
+        state->fullscreen = LoadTexture(&state->assets, "sprites/Fullscreen.png");
         state->title = LoadTexture(&state->assets, "sprites/TitleYellow.png");
         state->start[0] = LoadTexture(&state->assets, "sprites/Start.png");
         state->start[1] = LoadTexture(&state->assets, "sprites/StartSelected.png");

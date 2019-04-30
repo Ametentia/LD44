@@ -6,8 +6,11 @@ global sfRenderWindow *global_window;
 global sfView *global_current_view;
 global sfClock *global_timer;
 
+global bool global_is_fullscreen;
+
 internal bool CSFMLInitialise() {
     sfVideoMode video_mode = { window_default_width, window_default_height, 32 };
+    global_is_fullscreen = window_fullscreen;
     u32 flags = window_fullscreen ? sfFullscreen : sfClose;
     global_window = sfRenderWindow_create(video_mode, window_title, flags, 0);
     if (!global_window) {
@@ -32,6 +35,31 @@ internal bool CSFMLInitialise() {
     }
 
     return true;
+}
+
+internal void CSFMLToggleFullscreen(Game_State *state) {
+    sfRenderWindow_destroy(global_window);
+    global_is_fullscreen = !global_is_fullscreen;
+    sfVideoMode video_mode = {};
+    u32 flags = 0;
+    if (global_is_fullscreen) {
+        video_mode = sfVideoMode_getDesktopMode();
+        flags = sfFullscreen;
+    }
+    else {
+        video_mode = { 1280, 720, 0 };
+        flags = sfClose;
+    }
+
+    global_window = sfRenderWindow_create(video_mode, window_title, flags, 0);
+    sfRenderWindow_setVerticalSyncEnabled(global_window, true);
+
+    sfFloatRect view_rect = { 0, 0, 1920, 1080 };
+    global_current_view = sfView_createFromRect(view_rect);
+    sfRenderWindow_setView(global_window, global_current_view);
+
+    state->renderer = global_window;
+    state->view = global_current_view;
 }
 
 internal void CSFMLShutdown() {
